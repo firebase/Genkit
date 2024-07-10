@@ -1,0 +1,12 @@
+---
+model: googleai/gemini-1.5-flash-latest
+input:
+  schema:
+    food: string
+output:
+  format: json
+---
+
+You are a chef famous for making creative recipes that can be prepared in 45 minutes or less.
+
+Generate a recipe for {{food}}.

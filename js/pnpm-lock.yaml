@@ -450,8 +450,8 @@ importers:
         specifier: workspace:*
         version: link:../../core
       '@google/generative-ai':
-        specifier: ^0.10.0
-        version: 0.10.0
+        specifier: ^0.12.0
+        version: 0.12.0
       google-auth-library:
         specifier: ^9.6.3
         version: 9.7.0(encoding@0.1.13)
@@ -990,6 +990,31 @@ importers:
         specifier: ^5.3.3
         version: 5.4.5
 
+  testapps/json-mode:
+    dependencies:
+      '@genkit-ai/ai':
+        specifier: workspace:*
+        version: link:../../ai
+      '@genkit-ai/core':
+        specifier: workspace:^
+        version: link:../../core
+      '@genkit-ai/dotprompt':
+        specifier: workspace:*
+        version: link:../../plugins/dotprompt
+      '@genkit-ai/flow':
+        specifier: workspace:*
+        version: link:../../flow
+      '@genkit-ai/googleai':
+        specifier: workspace:*
+        version: link:../../plugins/googleai
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
+    devDependencies:
+      typescript:
+        specifier: ^5.3.3
+        version: 5.4.5
+
   testapps/langchain:
     dependencies:
       '@genkit-ai/ai':
@@ -1448,8 +1473,8 @@ packages:
     resolution: {integrity: sha512-hfwfdlVpJ+kM6o2b5UFfPnweBcz8tgHAFRswnqUKYqLJsvKU0DDD0Z2/YKoHyAUoPJAv20qg6KlC3msNeUKUiw==}
     engines: {node: '>=18.0.0'}
 
-  '@google/generative-ai@0.10.0':
-    resolution: {integrity: sha512-fZJEL8DcDgvBCguLdaAdBBEoh+83LDXK3m9rVh5iksvwVJDgZqkpsLGKJuM5FEBKltWhbJ62WSyMEUGgy8eMUg==}
+  '@google/generative-ai@0.12.0':
+    resolution: {integrity: sha512-krWjurjEUHSFhCX4lGHMOhbnpBfYZGU31mpHpPBQwcfWm0T+/+wxC4UCAJfkxxc3/HvGJVG8r4AqrffaeDHDlA==}
     engines: {node: '>=18.0.0'}
 
   '@grpc/grpc-js@1.10.10':
@@ -5175,7 +5200,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@google/generative-ai@0.10.0': {}
+  '@google/generative-ai@0.12.0': {}
 
   '@grpc/grpc-js@1.10.10':
     dependencies:

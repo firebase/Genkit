@@ -33,7 +33,7 @@
   "dependencies": {
     "@genkit-ai/ai": "workspace:*",
     "@genkit-ai/core": "workspace:*",
-    "@google/generative-ai": "^0.10.0",
+    "@google/generative-ai": "^0.12.0",
     "google-auth-library": "^9.6.3",
     "node-fetch": "^3.3.2",
     "zod": "^3.22.4"

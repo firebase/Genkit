@@ -1,0 +1,23 @@
+{
+  "name": "json-mode",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "@genkit-ai/ai": "workspace:*",
+    "@genkit-ai/core": "workspace:^",
+    "@genkit-ai/dotprompt": "workspace:*",
+    "@genkit-ai/flow": "workspace:*",
+    "@genkit-ai/googleai": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

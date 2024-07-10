@@ -44,6 +44,7 @@ import {
   Content as GeminiMessage,
   Part as GeminiPart,
   GenerateContentResponse,
+  GenerationConfig,
   GoogleGenerativeAI,
   InlineDataPart,
   RequestOptions,
@@ -112,6 +113,7 @@ export const gemini15Pro = modelRef({
       media: true,
       tools: true,
       systemRole: true,
+      output: ['text', 'json'],
     },
     versions: ['gemini-1.5-pro-001'],
   },
@@ -127,6 +129,7 @@ export const gemini15Flash = modelRef({
       media: true,
       tools: true,
       systemRole: true,
+      output: ['text', 'json'],
     },
     versions: ['gemini-1.5-flash-001'],
   },
@@ -321,7 +324,10 @@ function toGeminiPart(part: Part): GeminiPart {
   throw new Error('Unsupported Part type');
 }
 
-function fromGeminiPart(part: GeminiPart): Part {
+function fromGeminiPart(part: GeminiPart, jsonMode: boolean): Part {
+  if (jsonMode && part.text !== undefined) {
+    return { data: JSON.parse(part.text) };
+  }
   if (part.text !== undefined) return { text: part.text };
   if (part.inlineData) return fromInlineData(part);
   if (part.functionCall) return fromFunctionCall(part);
@@ -363,12 +369,17 @@ function fromGeminiFinishReason(
   }
 }
 
-export function fromGeminiCandidate(candidate: GeminiCandidate): CandidateData {
+export function fromGeminiCandidate(
+  candidate: GeminiCandidate,
+  jsonMode: boolean = false
+): CandidateData {
   return {
     index: candidate.index || 0, // reasonable default?
     message: {
       role: 'model',
-      content: (candidate.content?.parts || []).map(fromGeminiPart),
+      content: (candidate.content?.parts || []).map((part) =>
+        fromGeminiPart(part, jsonMode)
+      ),
     },
     finishReason: fromGeminiFinishReason(candidate.finishReason),
     finishMessage: candidate.finishMessage,
@@ -451,6 +462,19 @@ export function googleAIModel(
         }
       }
 
+      const strictlyTypedGenerationConfig: GenerationConfig = {
+        candidateCount: request.candidates || undefined,
+        temperature: request.config?.temperature,
+        maxOutputTokens: request.config?.maxOutputTokens,
+        topK: request.config?.topK,
+        topP: request.config?.topP,
+        stopSequences: request.config?.stopSequences,
+        responseMimeType:
+          request.output?.format === 'json' || request.output?.schema
+            ? 'application/json'
+            : undefined,
+      };
+
       const chatRequest = {
         systemInstruction,
         tools: request.tools?.length
@@ -459,24 +483,26 @@ export function googleAIModel(
         history: messages
           .slice(0, -1)
           .map((message) => toGeminiMessage(message, model)),
-        generationConfig: {
-          candidateCount: request.candidates || undefined,
-          temperature: request.config?.temperature,
-          maxOutputTokens: request.config?.maxOutputTokens,
-          topK: request.config?.topK,
-          topP: request.config?.topP,
-          stopSequences: request.config?.stopSequences,
-        },
+        generationConfig: strictlyTypedGenerationConfig,
         safetySettings: request.config?.safetySettings,
       } as StartChatParams;
       const msg = toGeminiMessage(messages[messages.length - 1], model);
+
+      const jsonMode =
+        request.output?.format === 'json' || !!request.output?.schema;
+      const fromJSONModeScopedGeminiCandidate = (
+        candidate: GeminiCandidate
+      ) => {
+        return fromGeminiCandidate(candidate, jsonMode);
+      };
+
       if (streamingCallback) {
         const result = await client
           .startChat(chatRequest)
           .sendMessageStream(msg.parts);
         for await (const item of result.stream) {
           (item as GenerateContentResponse).candidates?.forEach((candidate) => {
-            const c = fromGeminiCandidate(candidate);
+            const c = fromJSONModeScopedGeminiCandidate(candidate);
             streamingCallback({
               index: c.index,
               content: c.message.content,
@@ -488,7 +514,8 @@ export function googleAIModel(
           throw new Error('No valid candidates returned.');
         }
         return {
-          candidates: response.candidates?.map(fromGeminiCandidate) || [],
+          candidates:
+            response.candidates?.map(fromJSONModeScopedGeminiCandidate) || [],
           custom: response,
         };
       } else {
@@ -498,7 +525,8 @@ export function googleAIModel(
         if (!result.response.candidates?.length)
           throw new Error('No valid candidates returned.');
         const responseCandidates =
-          result.response.candidates?.map(fromGeminiCandidate) || [];
+          result.response.candidates?.map(fromJSONModeScopedGeminiCandidate) ||
+          [];
         return {
           candidates: responseCandidates,
           custom: result.response,
