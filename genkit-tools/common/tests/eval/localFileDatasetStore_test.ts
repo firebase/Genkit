@@ -89,17 +89,30 @@ const CREATE_DATASET_REQUEST = CreateDatasetRequestSchema.parse({
   data: { samples: SAMPLE_DATASET_1_V1 },
 });
 
+const INPUT_SCHEMA = {
+  "type": "string",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+};
+
+const REFERENCE_SCHEMA = {
+  "type": "object",
+  "properties": {
+    "output": {
+      "type": "string"
+    },
+  },
+  "required": [
+    "output",
+  ],
+  "additionalProperties": true,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+};
+
 const CREATE_DATASET_REQUEST_WITH_SCHEMA = CreateDatasetRequestSchema.parse({
   data: { samples: SAMPLE_DATASET_1_V1 },
   schema: {
-    inputSchema: {
-      type: 'string',
-      $schema: 'http://json-schema.org/draft-07/schema#',
-    },
-    referenceSchema: {
-      type: 'number',
-      $schema: 'http://json-schema.org/draft-07/schema#',
-    },
+    "inputSchema": INPUT_SCHEMA,
+    "referenceSchema": REFERENCE_SCHEMA,
   },
   targetAction: '/flow/my-flow',
 });
@@ -235,20 +248,16 @@ describe('localFileDatasetStore', () => {
         ...s,
       }));
 
+      console.log("CREATE_DATASET_REQUEST_WITH_SCHEMA schema", CREATE_DATASET_REQUEST_WITH_SCHEMA.schema);
+
       const datasetMetadata = await DatasetStore.createDataset({
         ...CREATE_DATASET_REQUEST_WITH_SCHEMA,
         datasetId: SAMPLE_DATASET_ID_1,
       });
 
       expect(datasetMetadata.schema).toMatchObject({
-        inputSchema: {
-          type: 'string',
-          $schema: 'http://json-schema.org/draft-07/schema#',
-        },
-        referenceSchema: {
-          type: 'number',
-          $schema: 'http://json-schema.org/draft-07/schema#',
-        },
+        inputSchema: INPUT_SCHEMA,
+        referenceSchema: REFERENCE_SCHEMA,
       });
       expect(datasetMetadata.targetAction).toEqual('/flow/my-flow');
     });
@@ -415,19 +424,15 @@ describe('localFileDatasetStore', () => {
       const datasetMetadata = await DatasetStore.updateDataset({
         datasetId: SAMPLE_DATASET_ID_1,
         schema: {
-          inputSchema: {
-            type: 'string',
-            $schema: 'http://json-schema.org/draft-07/schema#',
-          },
+          inputSchema: INPUT_SCHEMA,
+          referenceSchema: REFERENCE_SCHEMA,
         },
         targetAction: '/flow/my-flow-2',
       });
 
       expect(datasetMetadata.schema).toMatchObject({
-        inputSchema: {
-          type: 'string',
-          $schema: 'http://json-schema.org/draft-07/schema#',
-        },
+        inputSchema: INPUT_SCHEMA,
+        referenceSchema: REFERENCE_SCHEMA,
       });
       expect(datasetMetadata.targetAction).toEqual('/flow/my-flow-2');
     });

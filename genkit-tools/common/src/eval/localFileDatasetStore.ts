@@ -72,6 +72,8 @@ export class LocalFileDatasetStore implements DatasetStore {
     req: CreateDatasetRequest
   ): Promise<DatasetMetadata> {
     const { data, datasetId, schema, targetAction } = req;
+
+    console.log("Schema set to", schema);
     const id = await this.generateDatasetId(datasetId);
     const filePath = path.resolve(this.storeRoot, this.generateFileName(id));
 
@@ -96,6 +98,7 @@ export class LocalFileDatasetStore implements DatasetStore {
       updateTime: now,
     };
 
+    console.log("Dataset metadata set to", schema);
     let metadataMap = await this.getMetadataMap();
     metadataMap[id] = metadata;
 

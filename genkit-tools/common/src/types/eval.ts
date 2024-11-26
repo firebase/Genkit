@@ -15,6 +15,7 @@
  */
 
 import { z } from 'zod';
+import { CustomAnySchema, JSONSchema7Schema } from './action';
 import {
   CreateDatasetRequest,
   ListEvalKeysRequest,
@@ -161,16 +162,10 @@ export interface EvalStore {
   list(query?: ListEvalKeysRequest): Promise<ListEvalKeysResponse>;
 }
 
-export const DatasetSchemaSchema = z.object({
-  inputSchema: z
-    .record(z.any())
-    .describe('Valid JSON Schema for the `input` field of dataset entry.')
-    .optional(),
-  referenceSchema: z
-    .record(z.any())
-    .describe('Valid JSON Schema for the `reference` field of dataset entry.')
-    .optional(),
-});
+export const DatasetSchemaSchema = z
+  .record(z.string(), CustomAnySchema)
+  .describe('Schema objects related to the dataset.')
+  .nullish();
 
 /**
  * Metadata for Dataset objects containing version, create and update time, etc.
