@@ -368,6 +368,10 @@ func TestGenerateOptionsComplete(t *testing.T) {
 	tool := &mockTool{name: "test/tool"}
 	streamFunc := func(context.Context, *ModelResponseChunk) error { return nil }
 	doc := DocumentFromText("doc", nil)
+	session, err := NewSession(context.Background())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 	options := []GenerateOption{
 		WithModel(model),
 		WithMessages(NewUserTextMessage("message")),
@@ -384,6 +388,7 @@ func TestGenerateOptionsComplete(t *testing.T) {
 		WithOutputInstructions(""),
 		WithCustomConstrainedOutput(),
 		WithStreaming(streamFunc),
+		WithSession(*session),
 	}
 
 	for _, opt := range options {
@@ -419,7 +424,8 @@ func TestGenerateOptionsComplete(t *testing.T) {
 			CustomConstrained: true,
 		},
 		executionOptions: executionOptions{
-			Stream: streamFunc,
+			Stream:  streamFunc,
+			Session: &Session{},
 		},
 		documentOptions: documentOptions{
 			Documents: []*Document{doc},
@@ -430,7 +436,7 @@ func TestGenerateOptionsComplete(t *testing.T) {
 		cmpopts.IgnoreFields(commonGenOptions{}, "MessagesFn", "Middleware"),
 		cmpopts.IgnoreFields(promptingOptions{}, "SystemFn", "PromptFn"),
 		cmpopts.IgnoreFields(executionOptions{}, "Stream"),
-		cmpopts.IgnoreUnexported(mockModel{}, mockTool{}),
+		cmpopts.IgnoreUnexported(mockModel{}, mockTool{}, Session{}),
 		cmp.AllowUnexported(generateOptions{}, commonGenOptions{}, promptingOptions{},
 			outputOptions{}, executionOptions{}, documentOptions{})); diff != "" {
 		t.Errorf("Options not applied correctly, diff (-want +got):\n%s", diff)
@@ -561,6 +567,10 @@ func TestPromptExecuteOptionsComplete(t *testing.T) {
 	streamFunc := func(context.Context, *ModelResponseChunk) error { return nil }
 	input := map[string]string{"key": "value"}
 	doc := DocumentFromText("doc", nil)
+	session, err := NewSession(context.Background())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
 	options := []PromptExecuteOption{
 		WithModel(model),
@@ -574,6 +584,7 @@ func TestPromptExecuteOptionsComplete(t *testing.T) {
 		WithDocs(doc),
 		WithStreaming(streamFunc),
 		WithInput(input),
+		WithSession(*session),
 	}
 
 	for _, opt := range options {
@@ -596,7 +607,8 @@ func TestPromptExecuteOptionsComplete(t *testing.T) {
 			Middleware:         []ModelMiddleware{mw},
 		},
 		executionOptions: executionOptions{
-			Stream: streamFunc,
+			Stream:  streamFunc,
+			Session: &Session{},
 		},
 		documentOptions: documentOptions{
 			Documents: []*Document{doc},
@@ -607,7 +619,7 @@ func TestPromptExecuteOptionsComplete(t *testing.T) {
 	if diff := cmp.Diff(expected, opts,
 		cmpopts.IgnoreFields(commonGenOptions{}, "MessagesFn", "Middleware"),
 		cmpopts.IgnoreFields(executionOptions{}, "Stream"),
-		cmpopts.IgnoreUnexported(mockModel{}, mockTool{}),
+		cmpopts.IgnoreUnexported(mockModel{}, mockTool{}, Session{}),
 		cmp.AllowUnexported(promptExecutionOptions{}, commonGenOptions{},
 			executionOptions{})); diff != "" {
 		t.Errorf("Options not applied correctly, diff (-want +got):\n%s", diff)

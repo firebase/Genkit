@@ -365,6 +365,11 @@ func Generate(ctx context.Context, r *registry.Registry, opts ...GenerateOption)
 		genOpts.Config = modelRef.Config()
 	}
 
+	if genOpts.Session != nil {
+		// Set session details in context
+		ctx = genOpts.Session.SetContext(ctx)
+	}
+
 	actionOpts := &GenerateActionOptions{
 		Model:              modelName,
 		Messages:           messages,

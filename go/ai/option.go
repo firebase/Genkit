@@ -48,6 +48,7 @@ type ConfigOption interface {
 	applyRetriever(*retrieverOptions) error
 	applyEvaluator(*evaluatorOptions) error
 	applyIndexer(*indexerOptions) error
+	applySession(*sessionOptions) error
 }
 
 // applyConfig applies the option to the config options.
@@ -98,6 +99,11 @@ func (o *configOptions) applyEvaluator(opts *evaluatorOptions) error {
 
 // applyIndexer applies the option to the indexer options.
 func (o *configOptions) applyIndexer(opts *indexerOptions) error {
+	return o.applyConfig(&opts.configOptions)
+}
+
+// applySession applies the option to the session options.
+func (o *configOptions) applySession(opts *sessionOptions) error {
 	return o.applyConfig(&opts.configOptions)
 }
 
@@ -259,6 +265,11 @@ func WithReturnToolRequests(returnReqs bool) CommonGenOption {
 // WithToolChoice configures whether by default tool calls are required, disabled, or optional for the prompt.
 func WithToolChoice(toolChoice ToolChoice) CommonGenOption {
 	return &commonGenOptions{ToolChoice: toolChoice}
+}
+
+// WithSession sets the request session.
+func WithSession(session Session) ExecutionOption {
+	return &executionOptions{Session: &session}
 }
 
 // promptOptions are options for defining a prompt.
@@ -529,7 +540,8 @@ func WithCustomConstrainedOutput() OutputOption {
 
 // executionOptions are options for the execution of a prompt or generate request.
 type executionOptions struct {
-	Stream ModelStreamCallback // Function to call with each chunk of the generated response.
+	Stream  ModelStreamCallback // Function to call with each chunk of the generated response.
+	Session *Session            // Session to use for request.
 }
 
 // ExecutionOption is an option for the execution of a prompt or generate request. It applies only to Generate() and prompt.Execute().
@@ -546,6 +558,13 @@ func (o *executionOptions) applyExecution(execOpts *executionOptions) error {
 			return errors.New("cannot set stream callback more than once (WithStream)")
 		}
 		execOpts.Stream = o.Stream
+	}
+
+	if o.Session != nil {
+		if execOpts.Session != nil {
+			return errors.New("cannot set session more than once (WithSession)")
+		}
+		execOpts.Session = o.Session
 	}
 
 	return nil
@@ -835,4 +854,82 @@ func (o *promptExecutionOptions) applyPromptExecute(pgOpts *promptExecutionOptio
 // prompt's input schema and can either be a map[string]any or a struct of the same type.
 func WithInput(input any) PromptExecuteOption {
 	return &promptExecutionOptions{Input: input}
+}
+
+// sessionOptions are options for configuring the session parameters.
+type sessionOptions struct {
+	configOptions
+	ID           string         // The session ID
+	Data         *SessionData   // The data for the session
+	Store        SessionStore   // The store for the session, defaults to in-memory storage
+	Schema       map[string]any // The schema to use for the data
+	DefaultState any            // The default state
+}
+
+// SessionOption is an option for configuring the session parameters.
+// It applies only to [Session].
+type SessionOption interface {
+	applySession(*sessionOptions) error
+}
+
+// applySession applies the option to the session options.
+func (o *sessionOptions) applySession(sessOpts *sessionOptions) error {
+	if err := o.applyConfig(&sessOpts.configOptions); err != nil {
+		return err
+	}
+
+	if o.ID != "" {
+		if sessOpts.ID != "" {
+			return errors.New("cannot set session id more than once (WithSessionID)")
+		}
+		sessOpts.ID = o.ID
+	}
+
+	if o.Data != nil {
+		if sessOpts.Data != nil {
+			return errors.New("cannot set session data more than once (WithSessionData)")
+		}
+		sessOpts.Data = o.Data
+	}
+
+	if o.Store != nil {
+		if sessOpts.Store != nil {
+			return errors.New("cannot set session store more than once (WithSessionStore)")
+		}
+		sessOpts.Store = o.Store
+	}
+
+	if o.Schema != nil {
+		if sessOpts.Schema != nil {
+			return errors.New("cannot set state type more than once (WithSessionStateType)")
+		}
+		sessOpts.Schema = o.Schema
+		sessOpts.DefaultState = o.DefaultState
+	}
+
+	return nil
+}
+
+// WithSessionID sets the session id.
+func WithSessionID(id string) SessionOption {
+	return &sessionOptions{ID: id}
+}
+
+// WithSessionData sets the session data.
+func WithSessionData(data SessionData) SessionOption {
+	return &sessionOptions{Data: &data}
+}
+
+// WithSessionStore sets a session store for the session.
+func WithSessionStore(store SessionStore) SessionOption {
+	return &sessionOptions{Store: store}
+}
+
+// WithStateType uses the struct provided to derive the state schema.
+// If passing a struct with values, the struct definition will serve as the schema, the values will serve as the data.
+func WithSessionStateType(state any) SessionOption {
+	return &sessionOptions{
+		Schema:       base.SchemaAsMap(base.InferJSONSchema(state)),
+		DefaultState: state,
+	}
 }

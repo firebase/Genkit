@@ -166,6 +166,11 @@ func (p *Prompt) Execute(ctx context.Context, opts ...PromptExecuteOption) (*Mod
 		actionOpts.ReturnToolRequests = *genOpts.ReturnToolRequests
 	}
 
+	if genOpts.Session != nil {
+		// Set session details in context
+		ctx = genOpts.Session.SetContext(ctx)
+	}
+
 	return GenerateWithRequest(ctx, p.registry, actionOpts, genOpts.Middleware, genOpts.Stream)
 }
 
