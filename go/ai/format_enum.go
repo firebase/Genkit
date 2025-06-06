@@ -15,6 +15,7 @@
 package ai
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -52,9 +53,10 @@ func (e enumFormatter) Handler(schema map[string]any) (FormatHandler, error) {
 }
 
 type enumHandler struct {
-	instructions string
-	config       ModelOutputConfig
-	enums        []string
+	instructions  string
+	config        ModelOutputConfig
+	enums         []string
+	previousParts []*Part
 }
 
 // Instructions returns the instructions for the formatter.
@@ -67,6 +69,21 @@ func (e enumHandler) Config() ModelOutputConfig {
 	return e.config
 }
 
+// StreamCallback handler for streaming formatted responses
+func (e enumHandler) StreamCallback(cb ModelStreamCallback) ModelStreamCallback {
+	return func(ctx context.Context, mrc *ModelResponseChunk) error {
+		e.previousParts = append(e.previousParts, mrc.Content...)
+		mrc.Content = e.previousParts
+
+		parsed, err := e.ParseChunk(mrc)
+		if err != nil {
+			return err
+		}
+
+		return cb(ctx, parsed)
+	}
+}
+
 // ParseMessage parses the message and returns the formatted message.
 func (e enumHandler) ParseMessage(m *Message) (*Message, error) {
 	if e.config.Format == OutputFormatEnum {
@@ -77,27 +94,34 @@ func (e enumHandler) ParseMessage(m *Message) (*Message, error) {
 			return nil, errors.New("message has no content")
 		}
 
-		for i, part := range m.Content {
-			if !part.IsText() {
-				continue
-			}
-
-			// replace single and double quotes
-			re := regexp.MustCompile(`['"]`)
-			clean := re.ReplaceAllString(part.Text, "")
-
-			// trim whitespace
-			trimmed := strings.TrimSpace(clean)
-
-			if !slices.Contains(e.enums, trimmed) {
-				return nil, fmt.Errorf("message %s not in list of valid enums: %s", trimmed, strings.Join(e.enums, ", "))
-			}
-
-			m.Content[i] = NewTextPart(trimmed)
+		var err error
+		m.Content, err = getEnums(m.Content, e.enums)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return m, nil
+}
+
+// ParseChunk parse the chunk and returns a new formatted chunk.
+func (e enumHandler) ParseChunk(c *ModelResponseChunk) (*ModelResponseChunk, error) {
+	if e.config.Format == OutputFormatEnum {
+		if c == nil {
+			return nil, errors.New("chunk is empty")
+		}
+		if len(c.Content) == 0 {
+			return nil, errors.New("chunk has no content")
+		}
+
+		var err error
+		c.Content, err = getEnums(c.Content, e.enums)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return c, nil
 }
 
 // Get enum strings from json schema
@@ -119,4 +143,28 @@ func objectEnums(schema map[string]any) []string {
 	}
 
 	return enums
+}
+
+// Helper function to get matching enums from parts.
+func getEnums(parts []*Part, enums []string) ([]*Part, error) {
+	for i, part := range parts {
+		if !part.IsText() {
+			continue
+		}
+
+		// replace single and double quotes
+		re := regexp.MustCompile(`['"]`)
+		clean := re.ReplaceAllString(part.Text, "")
+
+		// trim whitespace
+		trimmed := strings.TrimSpace(clean)
+
+		if !slices.Contains(enums, trimmed) {
+			return nil, fmt.Errorf("message %s not in list of valid enums: %s", trimmed, strings.Join(enums, ", "))
+		}
+
+		parts[i] = NewTextPart(trimmed)
+	}
+
+	return parts, nil
 }

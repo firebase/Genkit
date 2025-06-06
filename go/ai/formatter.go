@@ -50,10 +50,14 @@ type Formatter interface {
 type FormatHandler interface {
 	// ParseMessage parses the message and returns a new formatted message.
 	ParseMessage(message *Message) (*Message, error)
+	// ParseChunk parse the chunk and returns a new formatted chunk.
+	ParseChunk(chunk *ModelResponseChunk) (*ModelResponseChunk, error)
 	// Instructions returns the formatter instructions to embed in the prompt.
 	Instructions() string
 	// Config returns the output config for the model request.
 	Config() ModelOutputConfig
+	// Stream callback returns a ModelStreamCallback
+	StreamCallback(cb ModelStreamCallback) ModelStreamCallback
 }
 
 // ConfigureFormats registers default formats in the registry

@@ -14,6 +14,10 @@
 
 package ai
 
+import (
+	"context"
+)
+
 type textFormatter struct{}
 
 // Name returns the name of the formatter.
@@ -47,7 +51,19 @@ func (t textHandler) Instructions() string {
 	return t.instructions
 }
 
+// StreamCallback handler for streaming formatted responses
+func (t textHandler) StreamCallback(cb ModelStreamCallback) ModelStreamCallback {
+	return func(ctx context.Context, mrc *ModelResponseChunk) error {
+		return cb(ctx, mrc)
+	}
+}
+
 // ParseMessage parses the message and returns the formatted message.
 func (t textHandler) ParseMessage(m *Message) (*Message, error) {
 	return m, nil
+}
+
+// ParseChunk parse the chunk and returns a new formatted chunk.
+func (t textHandler) ParseChunk(c *ModelResponseChunk) (*ModelResponseChunk, error) {
+	return c, nil
 }

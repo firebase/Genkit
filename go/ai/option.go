@@ -457,11 +457,20 @@ type OutputOption interface {
 
 // applyOutput applies the option to the output options.
 func (o *outputOptions) applyOutput(opts *outputOptions) error {
+	// set output format first, so we can default to JSON if format is not set, but schema is
+	if o.OutputFormat != "" {
+		opts.OutputFormat = o.OutputFormat
+	}
+
 	if o.OutputSchema != nil {
 		if opts.OutputSchema != nil {
 			return errors.New("cannot set output schema more than once (WithOutputType)")
 		}
 		opts.OutputSchema = o.OutputSchema
+
+		if opts.OutputFormat == "" {
+			opts.OutputFormat = OutputFormatJSON
+		}
 	}
 
 	if o.OutputInstructions != nil {
@@ -469,10 +478,6 @@ func (o *outputOptions) applyOutput(opts *outputOptions) error {
 			return errors.New("cannot set output instructions more than once (WithOutputFormat)")
 		}
 		opts.OutputInstructions = o.OutputInstructions
-	}
-
-	if o.OutputFormat != "" {
-		opts.OutputFormat = o.OutputFormat
 	}
 
 	if o.CustomConstrained {
@@ -496,7 +501,6 @@ func (o *outputOptions) applyGenerate(genOpts *generateOptions) error {
 func WithOutputType(output any) OutputOption {
 	return &outputOptions{
 		OutputSchema: base.SchemaAsMap(base.InferJSONSchema(output)),
-		OutputFormat: OutputFormatJSON,
 	}
 }
 

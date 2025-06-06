@@ -15,10 +15,13 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	partialparser "github.com/blaze2305/partial-json-parser"
+	"github.com/blaze2305/partial-json-parser/options"
 	"github.com/firebase/genkit/go/internal/base"
 )
 
@@ -55,8 +58,9 @@ func (j jsonFormatter) Handler(schema map[string]any) (FormatHandler, error) {
 
 // jsonHandler is a handler for the JSON formatter.
 type jsonHandler struct {
-	instructions string
-	config       ModelOutputConfig
+	instructions  string
+	config        ModelOutputConfig
+	previousParts []*Part
 }
 
 // Instructions returns the instructions for the formatter.
@@ -67,6 +71,21 @@ func (j jsonHandler) Instructions() string {
 // Config returns the output config for the formatter.
 func (j jsonHandler) Config() ModelOutputConfig {
 	return j.config
+}
+
+// StreamCallback handler for streaming formatted responses
+func (j jsonHandler) StreamCallback(cb ModelStreamCallback) ModelStreamCallback {
+	return func(ctx context.Context, mrc *ModelResponseChunk) error {
+		j.previousParts = append(j.previousParts, mrc.Content...)
+		mrc.Content = j.previousParts
+
+		parsed, err := j.ParseChunk(mrc)
+		if err != nil {
+			return err
+		}
+
+		return cb(ctx, parsed)
+	}
 }
 
 // ParseMessage parses the message and returns the formatted message.
@@ -85,7 +104,6 @@ func (j jsonHandler) ParseMessage(m *Message) (*Message, error) {
 			}
 
 			text := base.ExtractJSONFromMarkdown(part.Text)
-
 			if j.config.Schema != nil {
 				var schemaBytes []byte
 				schemaBytes, err := json.Marshal(j.config.Schema)
@@ -106,4 +124,35 @@ func (j jsonHandler) ParseMessage(m *Message) (*Message, error) {
 	}
 
 	return m, nil
+}
+
+// ParseChunk parse the chunk and returns a new formatted chunk.
+func (j jsonHandler) ParseChunk(c *ModelResponseChunk) (*ModelResponseChunk, error) {
+	if j.config.Format == OutputFormatJSON {
+		if c == nil {
+			return nil, errors.New("chunk is empty")
+		}
+
+		if len(c.Content) == 0 {
+			return nil, errors.New("chunk has no content")
+		}
+
+		// Get all chunks streamed so far
+		text := c.Text()
+		text = base.ExtractJSONFromMarkdown(text)
+		// Try and extract a json object
+		text = base.GetJsonObject(text)
+		if text != "" {
+			var err error
+			text, err = partialparser.ParseMalformedString(text, options.ALL, false)
+			if err != nil {
+				return nil, errors.New("message is not a valid JSON")
+			}
+		} else {
+			return nil, nil
+		}
+
+		c.Content = []*Part{NewJSONPart(text)}
+	}
+	return c, nil
 }
