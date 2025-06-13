@@ -16,6 +16,7 @@
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js' with { 'resolution-mode': 'import' };
 import type {
+  CallToolRequest,
   CallToolResult,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js' with { 'resolution-mode': 'import' };
@@ -59,15 +60,30 @@ function registerTool(
       inputJsonSchema: tool.inputSchema as JSONSchema7,
       outputSchema: z.any(),
     },
-    async (args) => {
-      logger.debug(
-        `[@genkit-ai/mcp] Calling MCP tool ${params.name}/${tool.name} with arguments`,
-        JSON.stringify(args)
-      );
-      const result = await client.callTool({
+    async (args, { context }) => {
+      let callToolOptions: CallToolRequest['params'] = {
         name: tool.name,
         arguments: args,
-      });
+      };
+      if (params.sendGenkitContext) {
+        callToolOptions = {
+          ...callToolOptions,
+          _meta: {
+            context,
+          },
+        };
+        logger.debug(
+          `[@genkit-ai/mcp] Calling MCP tool ${params.name}/${tool.name} with arguments and Genkit context`,
+          JSON.stringify({ args, context })
+        );
+      } else {
+        logger.debug(
+          `[@genkit-ai/mcp] Calling MCP tool ${params.name}/${tool.name} with arguments`,
+          JSON.stringify(args)
+        );
+      }
+
+      const result = await client.callTool(callToolOptions);
       logger.debug(
         `MCP tool ${tool.name} result:`,
         JSON.stringify(result, null, 2)

@@ -134,7 +134,19 @@ export class GenkitMcpServer {
         status: 'NOT_FOUND',
         message: `Tried to call tool '${req.params.name}' but it could not be found.`,
       });
-    const result = await tool(req.params.arguments);
+
+    const clientContext = req.params._meta?.context;
+
+    let result: any;
+
+    if (clientContext) {
+      const currentContext = this.ai.currentContext() || {};
+      result = await tool(req.params.arguments, {
+        context: { ...currentContext, ...clientContext },
+      });
+    } else {
+      result = await tool(req.params.arguments);
+    }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 

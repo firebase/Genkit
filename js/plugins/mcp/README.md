@@ -54,6 +54,7 @@ Most MCP servers are built to run as spawned processes on the same machine using
   - **`serverWebsocketUrl`: The URL of a remote server to connect to using the WebSocket MCP transport.
   - **`transport`**: An existing MCP transport object for connecting to the server.
 - **`rawToolResponses`**: (optional) A boolean flag. If `true`, tool responses are returned in their raw MCP format; otherwise, they are processed for Genkit compatibility.
+- **`sendGenkitContext`**: (optional) A boolean flag. If `true`, tool calls include context data from the current execution.
 
 ### Using MCP Actions
 

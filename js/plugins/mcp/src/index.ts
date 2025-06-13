@@ -38,6 +38,8 @@ export interface McpClientOptions {
   serverWebsocketUrl?: string | URL;
   /** Return tool responses in raw MCP form instead of processing them for Genkit compatibility. */
   rawToolResponses?: boolean;
+  /** Send the Genkit context to the server. */
+  sendGenkitContext?: boolean;
 }
 
 async function transportFrom(params: McpClientOptions): Promise<Transport> {
