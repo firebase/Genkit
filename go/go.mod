@@ -9,6 +9,7 @@ retract (
 
 require (
 	cloud.google.com/go/alloydbconn v1.15.3
+	cloud.google.com/go/bigquery v1.67.0
 	cloud.google.com/go/cloudsqlconn v1.17.2
 	cloud.google.com/go/firestore v1.18.0
 	cloud.google.com/go/logging v1.13.0
@@ -43,8 +44,17 @@ require (
 )
 
 require (
+	github.com/apache/arrow/go/v15 v15.0.2 // indirect
+	github.com/goccy/go-json v0.10.4 // indirect
+	github.com/google/flatbuffers v23.5.26+incompatible // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	github.com/zeebo/xxh3 v1.0.2 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 )
 
 require (
@@ -96,7 +106,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
-	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
+	github.com/googleapis/gax-go/v2 v2.14.2
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
