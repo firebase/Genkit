@@ -20,15 +20,15 @@ const simpleFlow = ai.defineFlow(
 ```ts
 // /app/api/simpleFlow/route.ts
 import { simpleFlow } from '@/genkit/simpleFlow';
-import { appRoute } from '@genkit-ai/nextjs';
+import { appRoute } from '@genkit-ai/next';
 
 export const POST = appRoute(simpleFlow);
 ```
 
-APIs can be called with the generic `genkit/beta/client` library, or `@genkit-ai/nextjs/client`
+APIs can be called with the generic `genkit/beta/client` library, or `@genkit-ai/next/client`
 
 ```ts
-import { runFlow, streamFlow } from '@genkit-ai/nextjs/client';
+import { runFlow, streamFlow } from '@genkit-ai/next/client';
 import { simpleFlow } from '@/genkit/simpleFlow';
 
 const result = await runFlow<typeof simpleFlow>({
