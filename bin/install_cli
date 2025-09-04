@@ -11,30 +11,37 @@
 :   Introduction
 : ==========================================
 
-# This script allows you to install the latest version of the
-# "genkit" command by running:
+# This script allows you to install the latest version of the "genkit" command by running:
 #
 :   curl -sL cli.genkit.dev | bash
 #
-# If you do not want to use this script, you can manually
-# download the latest "genkit" binary.
+# If you do not want to use this script, you can manually download the latest "genkit" binary.
+#
+# Linux:
 #
 :   curl -Lo ./genkit_bin https://storage.googleapis.com/genkit-assets-cli/prod/linux-x64/latest
 #
+# macOS:
+#
+:   curl -Lo ./genkit_bin https://storage.googleapis.com/genkit-assets-cli/prod/darwin-arm64/latest
+#
+# Windows:
+#
+:   curl -Lo ./genkit_bin.exe https://storage.googleapis.com/genkit-assets-cli/prod/win32-x64/latest.exe
+#
 # Alternatively, you can download a specific version.
 #
-:   curl -Lo ./genkit_bin https://storage.googleapis.com/genkit-assets-cli/prod/linux-x64/v1.15.5/genkit
+:   curl -Lo ./genkit_bin https://storage.googleapis.com/genkit-assets-cli/prod/darwin-arm64/v1.15.5/genkit
 #
 # For Windows append ".exe" to the URL.
 #
-:   curl -Lo ./genkit_bin https://storage.googleapis.com/genkit-assets-cli/prod/win32-x64/v1.15.5/genkit.exe
+:   curl -Lo ./genkit_bin.exe https://storage.googleapis.com/genkit-assets-cli/prod/win32-x64/v1.15.5/genkit.exe
 #
-# Note: On Mac, replace "linux" with "darwin" in the URL.
 # Supported architectures: darwin-x64, darwin-arm64, linux-x64, linux-arm64, win32-x64
 #
 # For full details about installation options for the Genkit CLI
 # please see our documentation.
-#   https://genkit.dev
+#   https://genkit.dev/docs/devtools
 #
 # Please report bugs / issues with this script on GitHub.
 #   https://github.com/firebase/genkit
