@@ -210,6 +210,7 @@ export class GenerateResponse<O = unknown> implements ModelResponseData {
       custom: (this.custom as { toJSON?: () => any }).toJSON?.() || this.custom,
       request: this.request,
       operation: this.operation,
+      raw: this.raw,
     };
     if (!out.finishMessage) delete out.finishMessage;
     if (!out.request) delete out.request;
