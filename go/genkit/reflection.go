@@ -56,19 +56,50 @@ type reflectionServer struct {
 	RuntimeFilePath string // Path to the runtime file that was written at startup.
 }
 
-// startReflectionServer starts the Reflection API server listening at the
-// value of the environment variable GENKIT_REFLECTION_PORT for the port,
-// or ":3100" if it is empty.
+// findAvailablePort finds an available TCP port starting from a given port.
+// It checks up to 100 ports.
+func findAvailablePort(startPort int) (int, error) {
+	for port := startPort; port < startPort+100; port++ {
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		if l, err := net.Listen("tcp", addr); err == nil {
+			l.Close()
+			return port, nil
+		}
+	}
+	return -1, fmt.Errorf("no available port in range %d-%d", startPort, startPort+99)
+}
+
+// startReflectionServer starts the Reflection API server. If the
+// GENKIT_REFLECTION_PORT environment variable is set, it will listen on that
+// port. Otherwise, it searches for an available port starting at 3100.
 func startReflectionServer(ctx context.Context, g *Genkit, errCh chan<- error, serverStartCh chan<- struct{}) *reflectionServer {
 	if g == nil {
 		errCh <- fmt.Errorf("nil Genkit provided")
 		return nil
 	}
 
-	addr := "127.0.0.1:3100"
-	if os.Getenv("GENKIT_REFLECTION_PORT") != "" {
-		addr = "127.0.0.1:" + os.Getenv("GENKIT_REFLECTION_PORT")
+	var port int
+	var err error
+	if portStr := os.Getenv("GENKIT_REFLECTION_PORT"); portStr != "" {
+		p, err := strconv.Atoi(portStr)
+		if err != nil {
+			errCh <- fmt.Errorf("invalid GENKIT_REFLECTION_PORT: %w", err)
+			return nil
+		}
+		port = p
+	} else {
+		startPort := 3100
+		port, err = findAvailablePort(startPort)
+		if err != nil {
+			errCh <- fmt.Errorf("failed to find available port: %w", err)
+			return nil
+		}
+		if port != startPort {
+			slog.Warn(fmt.Sprintf("Port %d is already in use, using next available port %d instead.", startPort, port))
+		}
 	}
+
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	s := &reflectionServer{
 		Server: &http.Server{
@@ -79,7 +110,7 @@ func startReflectionServer(ctx context.Context, g *Genkit, errCh chan<- error, s
 
 	slog.Debug("starting reflection server", "addr", s.Addr)
 
-	if err := s.writeRuntimeFile(s.Addr); err != nil {
+	if err := s.writeRuntimeFile(s.Addr, port); err != nil {
 		errCh <- fmt.Errorf("failed to write runtime file: %w", err)
 		return nil
 	}
@@ -127,7 +158,7 @@ func startReflectionServer(ctx context.Context, g *Genkit, errCh chan<- error, s
 }
 
 // writeRuntimeFile writes a file describing the runtime to the project root.
-func (s *reflectionServer) writeRuntimeFile(url string) error {
+func (s *reflectionServer) writeRuntimeFile(url string, port int) error {
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		return fmt.Errorf("failed to find project root: %w", err)
@@ -147,7 +178,7 @@ func (s *reflectionServer) writeRuntimeFile(url string) error {
 	// remove colons to avoid problems with different OS file name restrictions
 	timestamp = strings.ReplaceAll(timestamp, ":", "_")
 
-	s.RuntimeFilePath = filepath.Join(runtimesDir, fmt.Sprintf("%d-%s.json", os.Getpid(), timestamp))
+	s.RuntimeFilePath = filepath.Join(runtimesDir, fmt.Sprintf("%d-%d-%s.json", os.Getpid(), port, timestamp))
 
 	data := runtimeFileData{
 		ID:                       runtimeID,
