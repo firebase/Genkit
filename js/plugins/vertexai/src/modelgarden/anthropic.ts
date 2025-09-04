@@ -51,6 +51,38 @@ export const AnthropicConfigSchema = GenerationCommonConfigSchema.extend({
   location: z.string().optional(),
 });
 
+export const claude37Sonnet = modelRef({
+  name: 'vertexai/claude-3-7-sonnet',
+  info: {
+    label: 'Vertex AI Model Garden - Claude 3.7 Sonnet',
+    versions: ['claude-3-7-sonnet@20250219'],
+    supports: {
+      multiturn: true,
+      media: true,
+      tools: true,
+      systemRole: true,
+      output: ['text'],
+    },
+  },
+  configSchema: AnthropicConfigSchema,
+});
+
+export const claude35Haiku = modelRef({
+  name: 'vertexai/claude-3-5-haiku',
+  info: {
+    label: 'Vertex AI Model Garden - Claude 3.5 Haiku',
+    versions: ['claude-3-5-haiku@20241022'],
+    supports: {
+      multiturn: true,
+      media: true,
+      tools: true,
+      systemRole: true,
+      output: ['text'],
+    },
+  },
+  configSchema: AnthropicConfigSchema,
+});
+
 export const claude35SonnetV2 = modelRef({
   name: 'vertexai/claude-3-5-sonnet-v2',
   info: {
@@ -183,8 +215,10 @@ export const SUPPORTED_ANTHROPIC_MODELS: Record<
   string,
   ModelReference<typeof AnthropicConfigSchema>
 > = {
+  'claude-3-7-sonnet': claude37Sonnet,
   'claude-3-5-sonnet-v2': claude35SonnetV2,
   'claude-3-5-sonnet': claude35Sonnet,
+  'claude-3-5-haiku': claude35Haiku,
   'claude-3-sonnet': claude3Sonnet,
   'claude-3-opus': claude3Opus,
   'claude-3-haiku': claude3Haiku,
