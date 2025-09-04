@@ -20,6 +20,7 @@ from typing import Any
 
 from genkit.ai import GenkitRegistry, Plugin
 from genkit.core.action import Action
+from genkit.core.registry import ActionKind
 from genkit.types import Docs
 
 from .indexer import (
@@ -60,7 +61,24 @@ class DevLocalVectorStore(Plugin):
         self._configure_dev_local_retriever(ai=ai)
         self._configure_dev_local_indexer(ai=ai)
 
-    def _configure_dev_local_retriever(self, ai: GenkitRegistry) -> Action:
+    def resolve_action(
+        self,
+        ai: GenkitRegistry,
+        kind: ActionKind,
+        name: str,
+    ) -> None:
+
+        if kind is ActionKind.RETRIEVER:
+            self._configure_dev_local_retriever(ai, name)
+            return None
+
+        if kind is ActionKind.INDEXER:
+            self._configure_dev_local_indexer(ai, name)
+
+
+        return None
+
+    def _configure_dev_local_retriever(self, ai: GenkitRegistry, name: str | None = None) -> Action:
         """Registers Local Vector Store retriever for provided parameters.
 
         Args:
@@ -72,7 +90,7 @@ class DevLocalVectorStore(Plugin):
         """
         retriever = DevLocalVectorStoreRetriever(
             ai=ai,
-            index_name=self.index_name,
+            index_name=name or self.index_name,
             embedder=self.embedder,
             embedder_options=self.embedder_options,
         )
@@ -83,7 +101,7 @@ class DevLocalVectorStore(Plugin):
             fn=retriever.retrieve,
         )
 
-    def _configure_dev_local_indexer(self, ai: GenkitRegistry) -> Action:
+    def _configure_dev_local_indexer(self, ai: GenkitRegistry, name: str | None = None) -> Action:
         """Registers Local Vector Store indexer for provided parameters.
 
         Args:
@@ -95,12 +113,15 @@ class DevLocalVectorStore(Plugin):
         """
         indexer = DevLocalVectorStoreIndexer(
             ai=ai,
-            index_name=self.index_name,
+            index_name= name or self.index_name,
             embedder=self.embedder,
             embedder_options=self.embedder_options,
         )
 
         DevLocalVectorStore._indexers[self.index_name] = indexer
+
+
+
 
     @classmethod
     async def index(cls, index_name: str, documents: Docs) -> None:
