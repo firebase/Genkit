@@ -1,0 +1,14 @@
+---
+model: googleai/gemini-2.5-flash
+config:
+  temperature: 0.75
+input:
+  schema:
+    query: string
+---
+
+{{role "system"}}
+Only write code, do not explain
+
+{{role "user"}}
+Assist the user with: {{query}}

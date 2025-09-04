@@ -22,11 +22,6 @@ import {
   googleAI,
   textEmbeddingGecko001,
 } from '@genkit-ai/googleai';
-import { vertexAI } from '@genkit-ai/vertexai';
-import {
-  VertexAIEvaluationMetricType,
-  vertexAIEvaluation,
-} from '@genkit-ai/vertexai/evaluation';
 import { genkit } from 'genkit';
 import { langchain } from 'genkitx-langchain';
 
@@ -67,25 +62,6 @@ export const ai = genkit({
           type: GenkitMetric.ANSWER_ACCURACY,
           judge: gemini15Pro,
           judgeConfig: PERMISSIVE_SAFETY_SETTINGS,
-        },
-      ],
-    }),
-    vertexAI({
-      location: 'us-central1',
-    }),
-    vertexAIEvaluation({
-      location: 'us-central1',
-      metrics: [
-        VertexAIEvaluationMetricType.BLEU,
-        VertexAIEvaluationMetricType.GROUNDEDNESS,
-        VertexAIEvaluationMetricType.SAFETY,
-        {
-          type: VertexAIEvaluationMetricType.ROUGE,
-          metricSpec: {
-            rougeType: 'rougeLsum',
-            useStemmer: true,
-            splitSummaries: 'true',
-          },
         },
       ],
     }),

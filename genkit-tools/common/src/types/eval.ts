@@ -134,6 +134,7 @@ export const EvalInputSchema = z.object({
   error: z.string().optional(),
   context: z.array(z.any()).optional(),
   reference: z.any().optional(),
+  custom: z.record(z.string(), z.any()).optional(),
   traceIds: z.array(z.string()),
 });
 export type EvalInput = z.infer<typeof EvalInputSchema>;
@@ -251,7 +252,12 @@ export const DatasetSchemaSchema = z.object({
 });
 
 /** Type of dataset, useful for UI niceties. */
-export const DatasetTypeSchema = z.enum(['UNKNOWN', 'FLOW', 'MODEL']);
+export const DatasetTypeSchema = z.enum([
+  'UNKNOWN',
+  'FLOW',
+  'MODEL',
+  'EXECUTABLE_PROMPT',
+]);
 export type DatasetType = z.infer<typeof DatasetTypeSchema>;
 
 /**

@@ -332,6 +332,16 @@ export async function hasAction(params: {
   return actionsRecord.hasOwnProperty(actionRef);
 }
 
+export async function getAction(params: {
+  manager: RuntimeManager;
+  actionRef: string;
+}): Promise<Action | undefined> {
+  const { manager, actionRef } = { ...params };
+  const allActions = await manager.listActions();
+
+  return Object.values(allActions).find((action) => action.key === actionRef);
+}
+
 /** Helper function that maps string data to GenerateRequest */
 export function getModelInput(data: any, modelConfig: any): GenerateRequest {
   let message: MessageData;
@@ -351,7 +361,7 @@ export function getModelInput(data: any, modelConfig: any): GenerateRequest {
   } else {
     const maybeRequest = GenerateRequestSchema.safeParse(data);
     if (maybeRequest.success) {
-      return maybeRequest.data;
+      return { ...maybeRequest.data, config: modelConfig };
     } else {
       throw new Error(
         `Unable to parse model input as MessageSchema. Details: ${maybeRequest.error}`
