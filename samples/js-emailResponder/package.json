@@ -1,0 +1,44 @@
+{
+  "name": "customer-service-chatbot",
+  "version": "1.0.0",
+  "main": "lib/index.js",
+  "scripts": {
+    "start": "node lib/index.js",
+    "genkit:dev": "genkit start -- tsx --watch src/index.ts",
+    "compile": "tsc",
+    "build": "npm run build:clean && npm run compile",
+    "build:clean": "rimraf ./lib",
+    "build:watch": "tsc --watch",
+    "build-and-run": "npm run build && node lib/index.js",
+    "migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node src/prisma/seed.ts",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^7.5.0",
+    "@genkit-ai/evaluator": "^0.9.9",
+    "@genkit-ai/google-cloud": "^0.9.9",
+    "@genkit-ai/googleai": "^0.9.9",
+    "@genkit-ai/vertexai": "^0.9.9",
+    "@prisma/client": "^4.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0",
+    "genkit": "^0.9.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.16.5",
+    "genkit-cli": "^0.9.9",
+    "nodemon": "^3.1.4",
+    "prisma": "^4.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  },
+  "prisma": {
+    "seed": "ts-node ./prisma/seed.ts"
+  },
+  "packageManager": "pnpm@9.13.2+sha256.ccce81bf7498c5f0f80e31749c1f8f03baba99d168f64590fc7e13fad3ea1938"
+}

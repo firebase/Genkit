@@ -1,0 +1,165 @@
+[
+  {
+    "intent": "Product",
+    "subintent": "StockAvailability",
+    "inquiry": "Do you have the blue t-shirt in size medium?",
+    "context": {
+      "product": {
+        "id": "PROD123",
+        "name": "Classic Blue T-Shirt",
+        "description": "Comfortable cotton t-shirt in classic blue",
+        "price": 19.99,
+        "sku": "BLU-TSHIRT-M",
+        "stockLevel": 5
+      }
+    },
+    "handlerResult": {
+      "needsUserInput": false,
+      "nextAction": "DONE",
+      "actionsTaken": ["Retrieved product details"],
+      "data": {
+        "product": {
+          "id": "PROD123",
+          "name": "Classic Blue T-Shirt",
+          "description": "Comfortable cotton t-shirt in classic blue",
+          "price": 19.99,
+          "sku": "BLU-TSHIRT-M",
+          "stockLevel": 5
+        }
+      },
+      "handlerCompleted": true
+    }
+  },
+  {
+    "intent": "Order",
+    "subintent": "TrackingStatus",
+    "inquiry": "Where is my order #ORD456? It's been a week since I ordered.",
+    "context": {
+      "customerEmail": "customer@example.com"
+    },
+    "handlerResult": {
+      "needsUserInput": false,
+      "nextAction": "DONE",
+      "actionsTaken": ["Retrieved customer details", "Fetched recent orders"],
+      "data": {
+        "customer": {
+          "id": "CUST789",
+          "email": "customer@example.com",
+          "name": "John Doe"
+        },
+        "recentOrders": [
+          {
+            "id": "ORD456",
+            "orderDate": "2023-05-01T00:00:00Z",
+            "status": "SHIPPED",
+            "trackingNumber": "TRACK123456",
+            "orderItems": [
+              {
+                "id": "ITEM1",
+                "product": {
+                  "id": "PROD123",
+                  "name": "Classic Blue T-Shirt"
+                },
+                "quantity": 2
+              }
+            ]
+          }
+        ]
+      },
+      "handlerCompleted": true
+    }
+  },
+  {
+    "intent": "Returns",
+    "subintent": "ProcessInquiry",
+    "inquiry": "How do I return the shoes I bought last week? They don't fit.",
+    "context": {
+      "customerEmail": "customer@example.com"
+    },
+    "handlerResult": {
+      "needsUserInput": false,
+      "nextAction": "DONE",
+      "actionsTaken": ["Retrieved customer details", "Fetched recent orders"],
+      "data": {
+        "customer": {
+          "id": "CUST789",
+          "email": "customer@example.com",
+          "name": "John Doe"
+        },
+        "recentOrders": [
+          {
+            "id": "ORD789",
+            "orderDate": "2023-04-25T00:00:00Z",
+            "status": "DELIVERED",
+            "orderItems": [
+              {
+                "id": "ITEM2",
+                "product": {
+                  "id": "PROD456",
+                  "name": "Running Shoes"
+                },
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "handlerCompleted": true
+    }
+  },
+  {
+    "intent": "Account",
+    "subintent": "LoginIssue",
+    "inquiry": "I can't log into my account. It says my password is incorrect but I'm sure it's right.",
+    "context": {
+      "customerEmail": "customer@example.com"
+    },
+    "handlerResult": {
+      "needsUserInput": true,
+      "nextAction": "RESET_PASSWORD",
+      "actionsTaken": ["Retrieved customer details"],
+      "data": {
+        "customer": {
+          "id": "CUST789",
+          "email": "customer@example.com",
+          "name": "John Doe"
+        }
+      },
+      "handlerCompleted": false
+    }
+  },
+  {
+    "intent": "Catalog",
+    "subintent": "ProductAvailability",
+    "inquiry": "What products do you have available?",
+    "context": {},
+    "handlerResult": {
+      "needsUserInput": false,
+      "nextAction": "DONE",
+      "actionsTaken": ["Listed available products"],
+      "data": {
+        "products": [
+          {
+            "id": "PROD123",
+            "name": "Classic Blue T-Shirt",
+            "price": 19.99,
+            "stockLevel": 5
+          },
+          {
+            "id": "PROD456",
+            "name": "Running Shoes",
+            "price": 89.99,
+            "stockLevel": 10
+          },
+          {
+            "id": "PROD789",
+            "name": "Denim Jeans",
+            "price": 49.99,
+            "stockLevel": 15
+          }
+        ]
+      },
+      "handlerCompleted": true
+    }
+  }
+]

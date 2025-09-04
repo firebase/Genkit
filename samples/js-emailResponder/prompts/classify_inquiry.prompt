@@ -1,0 +1,40 @@
+---
+model: vertexai/gemini-1.5-pro
+input:
+  schema:
+    inquiry: string
+output:
+  schema:
+    type: object
+    properties:
+      intent:
+        type: string
+      subintent:
+        type: string
+---
+Classify the following customer inquiry into one of these intent/subintent pairs:
+- Catalog/GeneralQuestion
+- Catalog/ProductAvailability
+- Product/GeneralQuestion
+- Product/StockAvailability
+- Product/PriceInquiry
+- Order/GeneralQuestion
+- Order/TrackingStatus
+- Order/CancellationRequest
+- Returns/ProcessInquiry
+- Returns/RefundStatus
+- Shipping/DeliveryTimeframe
+- Shipping/CostInquiry
+- Account/LoginIssue
+- Account/UpdateInformation
+- Payment/MethodInquiry
+- Payment/TransactionIssue
+- Warranty/CoverageInquiry
+- Warranty/ClaimProcess
+- Feedback/ProductReview
+- Feedback/CustomerService
+- Other/Other
+
+Customer inquiry: {{inquiry}}
+
+Classification:

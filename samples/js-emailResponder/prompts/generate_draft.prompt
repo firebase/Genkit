@@ -1,0 +1,42 @@
+---
+model: vertexai/gemini-1.5-pro
+input:
+  schema:
+    type: object
+    properties:
+      intent: 
+        type: string
+      subintent: 
+        type: string
+      inquiry: 
+        type: string
+      context:
+        type: string
+output:
+  schema:
+    type: object
+    properties:
+      draftResponse: 
+        type: string
+---
+Generate a draft response for the following customer inquiry:
+
+Intent: {{intent}}
+Subintent: {{subintent}}
+Customer Inquiry: {{inquiry}}
+Context: {{context}}
+
+{% if escalate %}
+This inquiry needs to be escalated to a human representative.
+{% endif %}
+
+Please create a helpful and empathetic draft response addressing the customer's concerns. Include relevant details from the provided information based on the intent and subintent:
+
+1. For Catalog/GeneralQuestion: Provide an overview of the catalog or answer general questions about products.
+2. For Product/GeneralQuestion: Answer general questions about the specific product, using the product information provided.
+3. For Product/StockAvailability: Inform the customer about the stock status of the requested product.
+4. For Other/Other: Politely inform the customer that their inquiry will be escalated to a specialist for further assistance.
+
+Ensure the tone is professional, friendly, and tailored to the customer's needs.
+
+Draft Response:

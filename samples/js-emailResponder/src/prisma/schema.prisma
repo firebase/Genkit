@@ -1,0 +1,59 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Customer {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  orders      Order[]
+  escalations Escalation[]
+}
+
+model Product {
+  id          Int          @id @default(autoincrement())
+  name        String
+  description String
+  price       Float
+  sku         String       @unique
+  stockLevel  Int
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  customerId Int
+  orderDate  DateTime    @default(now())
+  status     String     @default("PENDING")
+  trackingNumber String?
+  orderItems OrderItem[]
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+  quantity  Int
+
+  @@unique([orderId, productId])
+}
+
+model Escalation {
+  id          Int          @id @default(autoincrement())
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  customerId  Int
+  subject     String
+  description String
+  status      String      @default("OPEN")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  threadId    String        
+}

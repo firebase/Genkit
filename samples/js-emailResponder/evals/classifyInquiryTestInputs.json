@@ -1,0 +1,16 @@
+[
+  { "inquiry": "I want to return a product I bought last week" },
+  { "inquiry": "What's the status of my order?" },
+  { "inquiry": "Do you have this shirt in blue?" },
+  { "inquiry": "I need help setting up my account" },
+  { "inquiry": "How can I track my package?" },
+  { "inquiry": "Is there a warranty on this product?" },
+  { "inquiry": "Can I change my shipping address?" },
+  { "inquiry": "What are your store hours?" },
+  { "inquiry": "Do you offer gift wrapping?" },
+  { "inquiry": "How do I apply a coupon code?" },
+  { "inquiry": "Are there any ongoing sales or promotions?" },
+  { "inquiry": "Can I cancel my subscription?" },
+  { "inquiry": "What's your return policy?" },
+  { "inquiry": "How long does shipping usually take?" }
+]

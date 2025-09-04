@@ -1,0 +1,47 @@
+---
+model: vertexai/gemini-1.5-pro
+input:
+  schema:
+    inquiry: string
+    category: string
+output:
+  schema:
+    type: object
+    properties:
+      productId: 
+        type: string
+      orderId: 
+        type: string
+      customerId: 
+        type: string
+      issue: 
+        type: string
+---
+
+### TASK
+Extract key information from the following customer inquiry.
+
+Please provide the following information:
+- Product ID (if mentioned)
+- Order ID (if mentioned)
+- Customer ID (if mentioned)
+- Main issue or question
+
+Important: If any of the requested information is not available in the inquiry, provide an empty string for that field. Do NOT invent or hallucinate any information.
+
+### CUSTOMER INQUIRY CONTEXT
+
+This is the inquiry information.
+
+Category: {{category}}
+Inquiry: {{inquiry}}
+
+### EXAMPLE OUTPUT 
+{
+  "productId": "PROD123",
+  "orderId": "ORD456",
+  "customerId": "",
+  "issue": "When will my order be delivered?"
+}
+
+Extracted Information:
