@@ -232,6 +232,17 @@ export function compatOaiSpeechModelRef<
   });
 }
 
+export const FILE_TYPE_TO_FILE_NAME_EXTENSION = {
+  'audio/flac': '.flac',
+  'audio/mp4': '.mp4',
+  'audio/mpeg': '.mp3',
+  'audio/mpga': '.mpga',
+  'audio/oga': '.oga',
+  'audio/wav': '.wav',
+  'audio/webm': '.webm',
+  'audio/ogg': '.ogg',
+};
+
 function toSttRequest(
   modelName: string,
   request: GenerateRequest,
@@ -246,11 +257,9 @@ function toSttRequest(
     media.url.slice(media.url.indexOf(',') + 1),
     'base64'
   );
-  const mediaFile = new File([mediaBuffer], 'input', {
-    type:
-      media.contentType ??
-      media.url.slice('data:'.length, media.url.indexOf(';')),
-  });
+  const contentType = media.contentType ?? media.url.slice('data:'.length, media.url.indexOf(';'));
+  const extension = FILE_TYPE_TO_FILE_NAME_EXTENSION[contentType] || '';
+  const mediaFile = new File([mediaBuffer], `input${extension}`, {type: contentType});
   const {
     temperature,
     version: modelVersion,
