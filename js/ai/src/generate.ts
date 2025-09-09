@@ -285,7 +285,8 @@ async function toolsToActionRefs(
 
   for (const t of toolOpt) {
     if (typeof t === 'string') {
-      tools.push(await resolveFullToolName(registry, t));
+      const names = await resolveFullToolNames(registry, t);
+      tools.push(...names);
     } else if (isAction(t) || isDynamicTool(t)) {
       tools.push(`/${t.__action.metadata?.type}/${t.__action.name}`);
     } else if (isExecutablePrompt(t)) {
@@ -530,17 +531,28 @@ function stripUndefinedOptions(input?: any): any {
   return copy;
 }
 
-async function resolveFullToolName(
+async function resolveFullToolNames(
   registry: Registry,
   name: string
-): Promise<string> {
-  if (await registry.lookupAction(`/tool/${name}`)) {
-    return `/tool/${name}`;
-  } else if (await registry.lookupAction(`/prompt/${name}`)) {
-    return `/prompt/${name}`;
-  } else {
-    throw new Error(`Unable to determine type of of tool: ${name}`);
+): Promise<string[]> {
+  let names: string[];
+  const parts = name.split(':');
+  if (parts.length > 1) {
+    // Dynamic Action Provider
+    names = await registry.resolveActionNames(
+      `/dynamic-action-provider/${name}`
+    );
+    if (names.length) {
+      return names;
+    }
   }
+  if (await registry.lookupAction(`/tool/${name}`)) {
+    return [`/tool/${name}`];
+  }
+  if (await registry.lookupAction(`/prompt/${name}`)) {
+    return [`/prompt/${name}`];
+  }
+  throw new Error(`Unable to resolve tool: ${name}`);
 }
 
 export type GenerateStreamOptions<

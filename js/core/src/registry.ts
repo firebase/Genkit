@@ -26,6 +26,7 @@ import {
   lookupBackgroundAction,
 } from './background-action.js';
 import { ActionContext } from './context.js';
+import { isDynamicActionProvider } from './dynamic-action-provider.js';
 import { GenkitError } from './error.js';
 import { logger } from './logging.js';
 import type { PluginProvider } from './plugin.js';
@@ -36,23 +37,30 @@ export type AsyncProvider<T> = () => Promise<T>;
 /**
  * Type of a runnable action.
  */
-export type ActionType =
-  | 'custom'
-  | 'embedder'
-  | 'evaluator'
-  | 'executable-prompt'
-  | 'flow'
-  | 'indexer'
-  | 'model'
-  | 'background-model'
-  | 'check-operation'
-  | 'cancel-operation'
-  | 'prompt'
-  | 'reranker'
-  | 'retriever'
-  | 'tool'
-  | 'util'
-  | 'resource';
+const ACTION_TYPES = [
+  'custom',
+  'dynamic-action-provider',
+  'embedder',
+  'evaluator',
+  'executable-prompt',
+  'flow',
+  'indexer',
+  'model',
+  'background-model',
+  'check-operation',
+  'cancel-operation',
+  'prompt',
+  'reranker',
+  'retriever',
+  'tool',
+  'util',
+  'resource',
+] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
+
+export function isActionType(value: string): value is ActionType {
+  return (ACTION_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * A schema is either a Zod schema or a JSON schema.
@@ -71,6 +79,7 @@ function parsePluginName(registryKey: string) {
 }
 
 interface ParsedRegistryKey {
+  dynamicActionHost?: string;
   actionType: ActionType;
   pluginName?: string;
   actionName: string;
@@ -78,6 +87,7 @@ interface ParsedRegistryKey {
 
 /**
  * Parses the registry key into key parts as per the key format convention. Ex:
+ *  - mcp-host:tool/my-tool
  *  - /model/googleai/gemini-2.0-flash
  *  - /prompt/my-plugin/folder/my-prompt
  *  - /util/generate
@@ -85,6 +95,30 @@ interface ParsedRegistryKey {
 export function parseRegistryKey(
   registryKey: string
 ): ParsedRegistryKey | undefined {
+  if (registryKey.startsWith('/dynamic-action-provider')) {
+    // Dynamic Action Provider format: 'dynamic-action-provider/mcp-host:tool/mytool' or 'mcp-host:tool/*'
+    const keyTokens = registryKey.split(':');
+    const hostTokens = keyTokens[0].split('/');
+    if (hostTokens.length < 3) {
+      return undefined;
+    }
+    if (keyTokens.length < 2) {
+      return {
+        actionType: 'dynamic-action-provider',
+        actionName: hostTokens[2],
+      };
+    }
+    const tokens = keyTokens[1].split('/');
+    if (tokens.length < 2 || !isActionType(tokens[0])) {
+      return undefined;
+    }
+    return {
+      dynamicActionHost: hostTokens[2],
+      actionType: tokens[0],
+      actionName: tokens.slice(1).join('/'),
+    };
+  }
+
   const tokens = registryKey.split('/');
   if (tokens.length < 3) {
     // Invalid key format
@@ -158,6 +192,24 @@ export class Registry {
     return new Registry(parent);
   }
 
+  async resolveActionNames(key: string): Promise<string[]> {
+    const parsedKey = parseRegistryKey(key);
+    if (parsedKey?.dynamicActionHost) {
+      const hostId = `/dynamic-action-provider/${parsedKey.dynamicActionHost}`;
+      const dap = await this.actionsById[hostId];
+      if (!dap || !isDynamicActionProvider(dap)) {
+        return [];
+      }
+      return (
+        await dap.listActions(parsedKey.actionType, parsedKey.actionName)
+      ).map((a) => `${hostId}:${parsedKey.actionType}/${a.__action.name}`);
+    }
+    if (await this.lookupAction(key)) {
+      return [key];
+    }
+    return [];
+  }
+
   /**
    * Looks up an action in the registry.
    * @param key The key of the action to lookup.
@@ -168,8 +220,21 @@ export class Registry {
     O extends z.ZodTypeAny,
     R extends Action<I, O>,
   >(key: string): Promise<R> {
-    // We always try to initialize the plugin first.
     const parsedKey = parseRegistryKey(key);
+    if (
+      parsedKey?.dynamicActionHost &&
+      this.actionsById[
+        `/dynamic-action-provider/${parsedKey.dynamicActionHost}`
+      ]
+    ) {
+      // If it's a dynamic action provider, get the dynamic action.
+      const action = await this.getDynamicAction(parsedKey);
+      if (action) {
+        return action as R;
+      }
+    }
+
+    // We always try to initialize the plugin first.
     if (parsedKey?.pluginName && this.pluginsByName[parsedKey.pluginName]) {
       await this.initializePlugin(parsedKey.pluginName);
 
@@ -184,6 +249,7 @@ export class Registry {
         );
       }
     }
+
     return (
       ((await this.actionsById[key]) as R) || this.parent?.lookupAction(key)
     );
@@ -402,6 +468,21 @@ export class Registry {
         }
       });
     }
+  }
+
+  async getDynamicAction(
+    key: ParsedRegistryKey
+  ): Promise<Action<z.ZodTypeAny, z.ZodTypeAny> | undefined> {
+    if (key.actionName.includes('*')) {
+      // * means multiple actions, this returns exactly one.
+      return undefined;
+    }
+    const actionId = `/dynamic-action-provider/${key.dynamicActionHost}`;
+    const dap = await this.actionsById[actionId];
+    if (!dap || !isDynamicActionProvider(dap)) {
+      return undefined;
+    }
+    return await dap.getAction(key.actionType, key.actionName);
   }
 
   /**

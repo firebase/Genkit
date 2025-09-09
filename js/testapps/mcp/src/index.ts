@@ -15,7 +15,7 @@
  */
 
 import { googleAI } from '@genkit-ai/googleai';
-import { createMcpHost } from '@genkit-ai/mcp';
+import { defineMcpHost } from '@genkit-ai/mcp';
 import { genkit, z } from 'genkit';
 import { logger } from 'genkit/logging';
 import path from 'path';
@@ -50,7 +50,7 @@ export const ai = genkit({
 
 logger.setLogLevel('debug'); // Set the logging level to debug for detailed output
 
-export const mcpHost = createMcpHost({
+export const mcpHost = defineMcpHost(ai, {
   name: 'test-mcp-manager',
   mcpServers: {
     'git-client': {
@@ -81,10 +81,28 @@ ai.defineFlow('git-commits', async (q) => {
   return text;
 });
 
+ai.defineFlow('dynamic-git-commits', async (q) => {
+  const { text } = await ai.generate({
+    prompt: `summarize last 5 commits in '${path.resolve(process.cwd(), '../../..')}'`,
+    tools: ['test-mcp-manager:tool/*'], // All the tools
+  });
+
+  return text;
+});
+
 ai.defineFlow('get-file', async (q) => {
   const { text } = await ai.generate({
     prompt: `summarize contexts of hello-world.txt (in '${process.cwd()}/test-workspace')`,
     tools: await mcpHost.getActiveTools(ai),
+  });
+
+  return text;
+});
+
+ai.defineFlow('dynamic-get-file', async (q) => {
+  const { text } = await ai.generate({
+    prompt: `summarize contexts of hello-world.txt (in '${process.cwd()}/test-workspace')`,
+    tools: ['test-mcp-manager:tool/fs/read_file'], // Just this one tool
   });
 
   return text;
@@ -101,6 +119,19 @@ ai.defineFlow('test-resource', async (q) => {
 
   return text;
 });
+
+// TODO(ifielker): Make resources work too
+// ai.defineFlow('dynamic-test-resource', async (q) => {
+//   const { text } = await ai.generate({
+//     prompt: [
+//       { text: 'analyze this: ' },
+//       { resource: { uri: 'test://static/resource/1' } },
+//     ],
+//     resources: ['test-mcp-manager:resource/*'],
+//   });
+
+//   return text;
+// });
 
 ai.defineFlow('update-file', async (q) => {
   const { text } = await ai.generate({
