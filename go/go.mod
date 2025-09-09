@@ -49,9 +49,12 @@ require (
 
 require (
 	cloud.google.com/go/alloydb v1.16.1 // indirect
+	github.com/cohesion-org/deepseek-go v1.3.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/ollama/ollama v0.6.5 // indirect
 	go.opencensus.io v0.24.0 // indirect
 )
 

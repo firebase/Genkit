@@ -185,6 +185,7 @@ func (o *OpenAICompatible) ListActions(ctx context.Context) []api.ActionDesc {
 	actions := []api.ActionDesc{}
 
 	models, err := listOpenAIModels(ctx, o.client)
+	fmt.Printf("got: models: %#v\n\n err: %v\n\n", models, err)
 	if err != nil {
 		return nil
 	}
@@ -197,7 +198,7 @@ func (o *OpenAICompatible) ListActions(ctx context.Context) []api.ActionDesc {
 					"systemRole":  true,
 					"tools":       true,
 					"toolChoice":  true,
-					"constrained": true,
+					"constrained": "no-tools",
 				},
 			},
 			"versions": []string{},
