@@ -31,48 +31,46 @@ class ActionTelemetry implements Telemetry {
     logInputAndOutput: boolean,
     projectId?: string
   ): void {
-    if (!logInputAndOutput) {
+    const attributes = span.attributes;
+    const type = attributes['genkit:type'] as string;
+    if (!logInputAndOutput || type === 'embedder' || type === 'indexer') {
       return;
     }
-    const attributes = span.attributes;
+
     const actionName = (attributes['genkit:name'] as string) || '<unknown>';
-    const subtype = attributes['genkit:metadata:subtype'] as string;
+    const path = (attributes['genkit:path'] as string) || '<unknown>';
+    const input = truncate(attributes['genkit:input'] as string);
+    const output = truncate(attributes['genkit:output'] as string);
+    const sessionId = attributes['genkit:sessionId'] as string;
+    const threadName = attributes['genkit:threadName'] as string;
+    let featureName = extractOuterFeatureNameFromPath(path);
+    if (!featureName || featureName === '<unknown>') {
+      featureName = actionName;
+    }
 
-    if (subtype === 'tool' || actionName === 'generate') {
-      const path = (attributes['genkit:path'] as string) || '<unknown>';
-      const input = truncate(attributes['genkit:input'] as string);
-      const output = truncate(attributes['genkit:output'] as string);
-      const sessionId = attributes['genkit:sessionId'] as string;
-      const threadName = attributes['genkit:threadName'] as string;
-      let featureName = extractOuterFeatureNameFromPath(path);
-      if (!featureName || featureName === '<unknown>') {
-        featureName = actionName;
-      }
-
-      if (input) {
-        this.writeLog(
-          span,
-          'Input',
-          featureName,
-          path,
-          input,
-          projectId,
-          sessionId,
-          threadName
-        );
-      }
-      if (output) {
-        this.writeLog(
-          span,
-          'Output',
-          featureName,
-          path,
-          output,
-          projectId,
-          sessionId,
-          threadName
-        );
-      }
+    if (input) {
+      this.writeLog(
+        span,
+        'Input',
+        featureName,
+        path,
+        input,
+        projectId,
+        sessionId,
+        threadName
+      );
+    }
+    if (output) {
+      this.writeLog(
+        span,
+        'Output',
+        featureName,
+        path,
+        output,
+        projectId,
+        sessionId,
+        threadName
+      );
     }
   }
 
