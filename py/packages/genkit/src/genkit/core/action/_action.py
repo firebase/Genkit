@@ -100,6 +100,7 @@ from genkit.core.tracing import tracer
 from ._tracing import record_input_metadata, record_output_metadata
 from ._util import extract_action_args_and_types, noop_streaming_callback
 from .types import ActionKind, ActionMetadataKey, ActionResponse
+from ...blocks.prompt import to_generate_action_options
 
 # TODO: add typing, generics
 StreamingCallback = Callable[[Any], None]
@@ -456,7 +457,7 @@ class Action:
             self._output_schema = TypeAdapter(Any).json_schema()
             self._metadata[ActionMetadataKey.OUTPUT_KEY] = self._output_schema
 
-
+# equivalent of ActionDesc
 class ActionMetadata(BaseModel):
     """Metadata for actions."""
 
@@ -570,3 +571,72 @@ def _make_tracing_wrappers(
             return ActionResponse(response=output, trace_id=trace_id)
 
     return sync_tracing_wrapper, async_tracing_wrapper
+
+
+
+
+
+def define_action_with_input_schema(
+    registry: Any,
+    name: str,
+    action_kind: ActionKind,
+    provider: str | None = None,
+    metadata: dict | None = None,
+    input_schema: dict | None = None,
+    fn: Callable[..., Any] = None
+) -> Action:
+    """
+    Crea y registra una nueva Action con un esquema de entrada definido dinámicamente.
+
+    Args:
+        registry: El registro donde se guardará la acción
+        provider: El proveedor de la acción
+        name: Nombre de la acción
+        action_type: Tipo de acción
+        metadata: Metadatos adicionales para la acción
+        input_schema: Esquema JSON que define la estructura de entrada
+        fn: Función que implementa la lógica de la acción
+
+    Returns:
+        ActionDef: Definición de la acción creada
+    """
+    full_name = name
+
+    return define_action(
+        registry,
+        full_name,
+        action_kind,
+        provider,
+        metadata,
+        input_schema,
+        fn
+    )
+
+
+
+def define_action(
+    registry: Any,
+    name: str,
+    action_kind: ActionKind,
+    provider: str | None = None,
+    metadata: dict | None = None,
+    input_schema: dict | None = None,
+    fn: Callable[..., Any] = None
+):
+    full_name = name
+
+    if provider:
+        full_name = f"{provider}/{name}"
+
+    # Construir la clave para el registro
+    key = f"/{action_kind}/{full_name}"
+
+    return registry.register_action(
+        action_kind,
+        key,
+        fn=fn,
+        metadata=metadata,
+        metadata_fn=input_schema
+    )
+
+
