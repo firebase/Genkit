@@ -102,7 +102,7 @@ async function createOllamaModel(
         tools: modelDef.supports?.tools,
       },
     },
-    async (input, opts: any) => {
+    async (input, opts) => {
       const { topP, topK, stopSequences, maxOutputTokens, ...rest } =
         input.config as any;
       const options: Record<string, any> = { ...rest };
