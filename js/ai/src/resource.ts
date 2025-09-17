@@ -154,6 +154,8 @@ export function resource(
 /**
  * Defines a dynamic resource. Dynamic resources are just like regular resources but will not be
  * registered in the Genkit registry and can be defined dynamically at runtime.
+ *
+ * @deprecated renamed to {@link resource}.
  */
 export function dynamicResource(
   opts: ResourceOptions,

@@ -43,6 +43,7 @@ export {
   modelActionMetadata,
   modelRef,
   rerankerRef,
+  resource,
   retrieverRef,
   type DocumentData,
   type DynamicResourceAction,
@@ -116,7 +117,7 @@ export {
   type SessionData,
   type SessionStore,
 } from '@genkit-ai/ai/session';
-export { dynamicTool } from '@genkit-ai/ai/tool';
+export { dynamicTool, tool } from '@genkit-ai/ai/tool';
 export {
   GENKIT_CLIENT_HEADER,
   GENKIT_VERSION,
