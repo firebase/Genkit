@@ -17,6 +17,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.27.0
 	github.com/anthropics/anthropic-sdk-go v1.9.1
 	github.com/blues/jsonata-go v1.5.4
+	github.com/cohesion-org/deepseek-go v1.3.2
 	github.com/goccy/go-yaml v1.17.1
 	github.com/google/dotprompt/go v0.0.0-20250611200215-bb73406b05ca
 	github.com/google/go-cmp v0.7.0
@@ -53,6 +54,8 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/ollama/ollama v0.6.5 // indirect
 	go.opencensus.io v0.24.0 // indirect
 )
 
