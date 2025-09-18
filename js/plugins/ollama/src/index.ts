@@ -85,7 +85,7 @@ const GENERIC_MODEL_INFO = {
 
 const DEFAULT_OLLAMA_SERVER_ADDRESS = 'http://localhost:11434';
 
-async function createOllamaModel(
+function createOllamaModel(
   modelDef: ModelDefinition,
   serverAddress: string,
   requestHeaders?: RequestHeaders
