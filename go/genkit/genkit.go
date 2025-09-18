@@ -601,6 +601,11 @@ func LookupPrompt(g *Genkit, name string) ai.Prompt {
 	return ai.LookupPrompt(g.reg, name)
 }
 
+// DefineSchema defines a prompt schema programmatically
+func DefineSchema(g *Genkit, name string, schema any) {
+	return ai.DefineSchema(g.reg, name, schema)
+}
+
 // GenerateWithRequest performs a model generation request using explicitly provided
 // [ai.GenerateActionOptions]. This function is typically used in conjunction with
 // prompts defined via [DefinePrompt], where [ai.prompt.Render] produces the

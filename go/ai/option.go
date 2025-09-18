@@ -876,7 +876,8 @@ type promptExecutionOptions struct {
 	commonGenOptions
 	executionOptions
 	documentOptions
-	Input any // Input fields for the prompt. If not nil this should be a struct that matches the prompt's input schema.
+	Input  any // Input fields for the prompt. If not nil this should be a struct that matches the prompt's input schema.
+	Output any // Output fields for the prompt. If not nil, this should be a struct that matches the prompt's desired output schema
 }
 
 // PromptExecuteOption is an option for executing a prompt. It applies only to [prompt.Execute].
@@ -912,4 +913,10 @@ func (o *promptExecutionOptions) applyPromptExecute(pgOpts *promptExecutionOptio
 // prompt's input schema and can either be a map[string]any or a struct of the same api.
 func WithInput(input any) PromptExecuteOption {
 	return &promptExecutionOptions{Input: input}
+}
+
+// WithOutput sets the output for the prompt desired output. Output must conform to the
+// prompt's output schema and should be a map[string]any or a struct of the same type.
+func WithOutput(output any) PromptExecuteOption {
+	return &promptExecutionOptions{Output: output}
 }
