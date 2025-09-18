@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 import * as assert from 'assert';
-import { genkit } from 'genkit';
 import { describe, it } from 'node:test';
 import { defineOllamaEmbedder } from '../src/embeddings.js'; // Adjust the import path as necessary
-import { ollama } from '../src/index.js';
 import type { OllamaPluginParams } from '../src/types.js'; // Adjust the import path as necessary
 // Utility function to parse command-line arguments
 function parseArgs() {
@@ -37,21 +35,15 @@ describe('defineOllamaEmbedder - Live Tests', () => {
     serverAddress,
   };
   it('should successfully return embeddings', async () => {
-    const ai = genkit({
-      plugins: [ollama(options)],
-    });
-    const embedder = defineOllamaEmbedder(ai, {
+    const embedder = defineOllamaEmbedder({
       name: 'live-test-embedder',
       modelName: 'nomic-embed-text',
       dimensions: 768,
       options,
     });
-    const result = (
-      await ai.embed({
-        embedder,
-        content: 'Hello, world!',
-      })
-    )[0].embedding;
-    assert.strictEqual(result.length, 768);
+    const result = await embedder({
+      input: [{ content: [{ text: 'Hello, world!' }] }],
+    });
+    assert.strictEqual(result.embeddings[0].embedding.length, 768);
   });
 });

@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 import * as assert from 'assert';
-import { genkit, type Genkit } from 'genkit';
-import { beforeEach, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { defineOllamaEmbedder } from '../src/embeddings.js';
-import { ollama } from '../src/index.js';
 import type { OllamaPluginParams } from '../src/types.js';
+import 'genkit';  
 
 // Mock fetch to simulate API responses
 global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
@@ -42,38 +41,27 @@ global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
 };
 
 describe('defineOllamaEmbedder', () => {
+  
   const options: OllamaPluginParams = {
     models: [{ name: 'test-model' }],
     serverAddress: 'http://localhost:3000',
   };
 
-  let ai: Genkit;
-  beforeEach(() => {
-    ai = genkit({
-      plugins: [
-        ollama({
-          serverAddress: 'http://localhost:3000',
-        }),
-      ],
-    });
-  });
-
   it('should successfully return embeddings', async () => {
-    const embedder = defineOllamaEmbedder(ai, {
+    const embedder = defineOllamaEmbedder({
       name: 'test-embedder',
       modelName: 'test-model',
       dimensions: 123,
       options,
     });
-    const result = await ai.embed({
-      embedder,
-      content: 'Hello, world!',
+    const result = await embedder({
+      input: [{ content: [{ text: 'Hello, world!' }] }],
     });
-    assert.deepStrictEqual(result, [{ embedding: [0.1, 0.2, 0.3] }]);
+    assert.deepStrictEqual(result, { embeddings: [{ embedding: [0.1, 0.2, 0.3] }] });
   });
 
   it('should handle API errors correctly', async () => {
-    const embedder = defineOllamaEmbedder(ai, {
+    const embedder = defineOllamaEmbedder({
       name: 'test-embedder',
       modelName: 'test-model',
       dimensions: 123,
@@ -81,9 +69,8 @@ describe('defineOllamaEmbedder', () => {
     });
     await assert.rejects(
       async () => {
-        await ai.embed({
-          embedder,
-          content: 'fail',
+        await embedder({
+          input: [{ content: [{ text: 'fail' }] }],
         });
       },
       (error) => {
