@@ -65,7 +65,7 @@ global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
       return new Response(JSON.stringify(MOCK_END_RESPONSE));
     }
 
-    // For tool calls, return the end response directly (simplified for v2)
+    // For tool calls
     return new Response(JSON.stringify(MOCK_END_RESPONSE));
   }
   throw new Error('Unknown API endpoint');
@@ -109,6 +109,7 @@ describe('ollama models', () => {
       prompt: 'Hello',
       tools: [get_current_weather],
     });
+
     assert.ok(result.message?.content[0]?.text === 'The weather is sunny');
   });
 
