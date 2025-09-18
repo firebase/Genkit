@@ -21,14 +21,16 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { defineDocsTool } from '../mcp/docs';
 import { defineFlowTools } from './flows';
 import { defineTraceTools } from './trace';
+import { defineUsageGuideTool } from './usage';
 
 export async function startMcpServer(manager: RuntimeManager) {
   const server = new McpServer({
     name: 'Genkit MCP',
-    version: '0.0.1',
+    version: '0.0.2',
   });
 
   await defineDocsTool(server);
+  await defineUsageGuideTool(server);
   defineFlowTools(server, manager);
   defineTraceTools(server, manager);
 
