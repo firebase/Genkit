@@ -43,6 +43,7 @@ import {
   type GenkitPluginV2,
   type ResolvableAction,
 } from 'genkit/plugin';
+import { defineOllamaEmbedder } from './embeddings.js';
 import type {
   ApiType,
   ListLocalModelsResponse,
@@ -54,7 +55,6 @@ import type {
   OllamaToolCall,
   RequestHeaders,
 } from './types.js';
-import { defineOllamaEmbedder } from './embeddings.js';
 
 export type { OllamaPluginParams };
 

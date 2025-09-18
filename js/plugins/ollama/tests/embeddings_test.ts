@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 import * as assert from 'assert';
+import 'genkit';
 import { describe, it } from 'node:test';
 import { defineOllamaEmbedder } from '../src/embeddings.js';
 import type { OllamaPluginParams } from '../src/types.js';
-import 'genkit';  
 
 // Mock fetch to simulate API responses
 global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
@@ -41,7 +41,6 @@ global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
 };
 
 describe('defineOllamaEmbedder', () => {
-  
   const options: OllamaPluginParams = {
     models: [{ name: 'test-model' }],
     serverAddress: 'http://localhost:3000',
@@ -57,7 +56,9 @@ describe('defineOllamaEmbedder', () => {
     const result = await embedder({
       input: [{ content: [{ text: 'Hello, world!' }] }],
     });
-    assert.deepStrictEqual(result, { embeddings: [{ embedding: [0.1, 0.2, 0.3] }] });
+    assert.deepStrictEqual(result, {
+      embeddings: [{ embedding: [0.1, 0.2, 0.3] }],
+    });
   });
 
   it('should handle API errors correctly', async () => {
