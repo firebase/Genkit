@@ -38,7 +38,6 @@ import {
   type ToolDefinition,
 } from 'genkit/model';
 import {
-  embedder,
   genkitPluginV2,
   model,
   type GenkitPluginV2,
@@ -46,7 +45,6 @@ import {
 } from 'genkit/plugin';
 import type {
   ApiType,
-  EmbeddingModelDefinition,
   ListLocalModelsResponse,
   LocalModel,
   Message,
@@ -56,6 +54,7 @@ import type {
   OllamaToolCall,
   RequestHeaders,
 } from './types.js';
+import { defineOllamaEmbedder } from './embeddings.js';
 
 export type { OllamaPluginParams };
 
@@ -102,9 +101,9 @@ async function createOllamaModel(
         tools: modelDef.supports?.tools,
       },
     },
-    async (input, opts) => {
+    async (request, opts) => {
       const { topP, topK, stopSequences, maxOutputTokens, ...rest } =
-        input.config as any;
+        request.config as any;
       const options: Record<string, any> = { ...rest };
       if (topP !== undefined) {
         options.top_p = topP;
@@ -119,20 +118,20 @@ async function createOllamaModel(
         options.num_predict = maxOutputTokens;
       }
       const type = modelDef.type ?? 'chat';
-      const request = toOllamaRequest(
+      const ollamaRequest = toOllamaRequest(
         modelDef.name,
-        input,
+        request,
         options,
         type,
-        !!opts.sendChunk
+        !!opts
       );
-      logger.debug(request, `ollama request (${type})`);
+      logger.debug(ollamaRequest, `ollama request (${type})`);
 
       const extraHeaders = await getHeaders(
         serverAddress,
         requestHeaders,
         modelDef,
-        input
+        request
       );
       let res;
       try {
@@ -140,7 +139,7 @@ async function createOllamaModel(
           serverAddress + (type === 'chat' ? '/api/chat' : '/api/generate'),
           {
             method: 'POST',
-            body: JSON.stringify(request),
+            body: JSON.stringify(ollamaRequest),
             headers: {
               'Content-Type': 'application/json',
               ...extraHeaders,
@@ -196,59 +195,9 @@ async function createOllamaModel(
 
       return {
         message,
-        usage: getBasicUsageStats(input.messages, message),
+        usage: getBasicUsageStats(request.messages, message),
         finishReason: 'stop',
       } as GenerateResponseData;
-    }
-  );
-}
-
-async function createOllamaEmbedder(
-  modelDef: EmbeddingModelDefinition,
-  serverAddress: string,
-  requestHeaders?: RequestHeaders
-) {
-  return embedder(
-    {
-      name: modelDef.name,
-      info: {
-        label: 'Ollama Embedding - ' + modelDef.name,
-        dimensions: modelDef.dimensions,
-        supports: {
-          input: ['text'],
-        },
-      },
-    },
-    async (input, config) => {
-      const { url, requestPayload, headers } = await toOllamaEmbedRequest(
-        modelDef.name,
-        modelDef.dimensions,
-        input.input,
-        serverAddress,
-        requestHeaders
-      );
-
-      const response: Response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestPayload),
-      });
-
-      if (!response.ok) {
-        const errMsg = (await response.json()).error?.message || '';
-        throw new Error(
-          `Error fetching embedding from Ollama: ${response.statusText}. ${errMsg}`
-        );
-      }
-
-      const payload = (await response.json()) as any;
-
-      const embeddings: { embedding: number[] }[] = [];
-
-      for (const embedding of payload.embeddings) {
-        embeddings.push({ embedding });
-      }
-      return { embeddings };
     }
   );
 }
@@ -296,11 +245,12 @@ function ollamaPlugin(params?: OllamaPluginParams): GenkitPluginV2 {
       if (params?.embedders) {
         for (const embedder of params.embedders) {
           actions.push(
-            await createOllamaEmbedder(
-              embedder,
-              serverAddress,
-              params.requestHeaders
-            )
+            defineOllamaEmbedder({
+              name: embedder.name,
+              modelName: embedder.name,
+              dimensions: embedder.dimensions,
+              options: params,
+            })
           );
         }
       }
@@ -379,46 +329,7 @@ export const OllamaConfigSchema = GenerationCommonConfigSchema.extend({
     .optional(),
 });
 
-async function toOllamaEmbedRequest(
-  modelName: string,
-  dimensions: number,
-  documents: any[],
-  serverAddress: string,
-  requestHeaders?: RequestHeaders
-): Promise<{
-  url: string;
-  requestPayload: any;
-  headers: Record<string, string>;
-}> {
-  const requestPayload = {
-    model: modelName,
-    input: documents.map((doc) => doc.text),
-  };
-
-  const extraHeaders = requestHeaders
-    ? typeof requestHeaders === 'function'
-      ? await requestHeaders({
-          serverAddress,
-          model: {
-            name: modelName,
-            dimensions,
-          },
-          embedRequest: requestPayload,
-        })
-      : requestHeaders
-    : {};
-
-  const headers = {
-    'Content-Type': 'application/json',
-    ...extraHeaders,
-  };
-
-  return {
-    url: `${serverAddress}/api/embed`,
-    requestPayload,
-    headers,
-  };
-}
+// toOllamaEmbedRequest is now in embeddings.ts
 
 function parseMessage(response: any, type: ApiType): MessageData {
   if (response.error) {
