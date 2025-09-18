@@ -36,16 +36,16 @@ func TestVertexAILive(t *testing.T) {
 	if !ok {
 		t.Skipf("GOOGLE_CLOUD_PROJECT env var not set")
 	}
-	location, ok := requireEnv("GOOGLE_CLOUD_LOCATION")
+	region, ok := requireEnv("GOOGLE_CLOUD_LOCATION")
 	if !ok {
 		t.Log("GOOGLE_CLOUD_LOCATION env var not set, defaulting to us-central1")
-		location = "us-central1"
+		region = "us-central1"
 	}
 
 	ctx := context.Background()
 	g := genkit.Init(ctx,
 		genkit.WithDefaultModel("vertexai/gemini-2.0-flash"),
-		genkit.WithPlugins(&googlegenai.VertexAI{ProjectID: projectID, Location: location}),
+		genkit.WithPlugins(&googlegenai.VertexAI{ProjectID: projectID, Location: region}),
 	)
 
 	embedder := googlegenai.VertexAIEmbedder(g, "textembedding-gecko@003")
@@ -264,8 +264,8 @@ func TestVertexAILive(t *testing.T) {
 		}
 	})
 	t.Run("image generation", func(t *testing.T) {
-		if location != "global" {
-			t.Skipf("image generation in Vertex AI is only supported in region: global, got: %s", location)
+		if region != "global" {
+			t.Skipf("image generation in Vertex AI is only supported in region: global, got: %s", region)
 		}
 		m := googlegenai.VertexAIModel(g, "gemini-2.0-flash-preview-image-generation")
 		resp, err := genkit.Generate(ctx, g,
@@ -328,8 +328,8 @@ func TestVertexAILive(t *testing.T) {
 		}
 	})
 	t.Run("thinking enabled", func(t *testing.T) {
-		if location != "global" && location != "us-central1" {
-			t.Skipf("thinking in Vertex AI is only supported in these regions: [global, us-central1], got: %q", location)
+		if region != "global" && region != "us-central1" {
+			t.Skipf("thinking in Vertex AI is only supported in these regions: [global, us-central1], got: %q", region)
 		}
 
 		m := googlegenai.VertexAIModel(g, "gemini-2.5-flash-preview-05-20")
@@ -360,8 +360,8 @@ func TestVertexAILive(t *testing.T) {
 		}
 	})
 	t.Run("thinking disabled", func(t *testing.T) {
-		if location != "global" && location != "us-central1" {
-			t.Skipf("thinking in Vertex AI is only supported in these regions: [global, us-central1], got: %q", location)
+		if region != "global" && region != "us-central1" {
+			t.Skipf("thinking in Vertex AI is only supported in these regions: [global, us-central1], got: %q", region)
 		}
 
 		m := googlegenai.VertexAIModel(g, "gemini-2.5-flash-preview-05-20")

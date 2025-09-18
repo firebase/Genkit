@@ -32,15 +32,15 @@ func main() {
 	}
 	g := genkit.Init(ctx, genkit.WithPlugins(&oai))
 
-	genkit.DefineFlow(g, "anthropic", func(ctx context.Context, subject string) (string, error) {
+	genkit.DefineFlow(g, "joke-teller", func(ctx context.Context, subject string) (string, error) {
 		sonnet37 := oai.Model(g, "claude-3-7-sonnet-20250219")
 
 		prompt := fmt.Sprintf("tell me a joke about %s", subject)
-		foo, err := genkit.Generate(ctx, g, ai.WithModel(sonnet37), ai.WithPrompt(prompt))
+		r, err := genkit.Generate(ctx, g, ai.WithModel(sonnet37), ai.WithPrompt(prompt))
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("foo: %s", foo.Text()), nil
+		return r.Text(), nil
 	})
 
 	mux := http.NewServeMux()

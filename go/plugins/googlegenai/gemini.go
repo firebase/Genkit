@@ -276,7 +276,10 @@ func generate(
 		if err != nil {
 			return nil, err
 		}
-		r := translateResponse(resp)
+		r, err := translateResponse(resp)
+		if err != nil {
+			return nil, err
+		}
 
 		r.Request = input
 		if cache != nil {
@@ -298,8 +301,11 @@ func generate(
 			return nil, err
 		}
 		for i, c := range chunk.Candidates {
-			tc := translateCandidate(c)
-			err := cb(ctx, &ai.ModelResponseChunk{
+			tc, err := translateCandidate(c)
+			if err != nil {
+				return nil, err
+			}
+			err = cb(ctx, &ai.ModelResponseChunk{
 				Content: tc.Message.Content,
 			})
 			if err != nil {
@@ -322,7 +328,10 @@ func generate(
 		},
 	}
 	resp.Candidates = merged
-	r = translateResponse(resp)
+	r, err = translateResponse(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate contents: %w", err)
+	}
 	r.Request = input
 	if cache != nil {
 		r.Message.Metadata = cacheMetadata(r.Message.Metadata, cache)
@@ -339,11 +348,17 @@ func toGeminiRequest(input *ai.ModelRequest, cache *genai.CachedContent) (*genai
 		return nil, err
 	}
 
-	// only one candidate is supported by default
-	gcc.CandidateCount = 1
+	// candidate count might not be set to 1 and will keep its zero value if not set
+	// e.g. default value from reflection server is 0
+	if gcc.CandidateCount == 0 {
+		gcc.CandidateCount = 1
+	}
 
 	// Genkit primitive fields must be used instead of go-genai fields
 	// i.e.: system prompt, tools, cached content, response schema, etc
+	if gcc.CandidateCount != 1 {
+		return nil, errors.New("multiple candidates is not supported")
+	}
 	if gcc.SystemInstruction != nil {
 		return nil, errors.New("system instruction must be set using Genkit feature: ai.WithSystemPrompt()")
 	}
@@ -596,7 +611,7 @@ func toGeminiToolChoice(toolChoice ai.ToolChoice, tools []*ai.ToolDefinition) (*
 }
 
 // translateCandidate translates from a genai.GenerateContentResponse to an ai.ModelResponse.
-func translateCandidate(cand *genai.Candidate) *ai.ModelResponse {
+func translateCandidate(cand *genai.Candidate) (*ai.ModelResponse, error) {
 	m := &ai.ModelResponse{}
 	switch cand.FinishReason {
 	case genai.FinishReasonStop:
@@ -613,6 +628,10 @@ func translateCandidate(cand *genai.Candidate) *ai.ModelResponse {
 		m.FinishReason = ai.FinishReasonUnknown
 	}
 	msg := &ai.Message{}
+	if cand.Content == nil {
+		return nil, fmt.Errorf("no valid candidates were found in the generate response")
+	}
+
 	msg.Role = ai.Role(cand.Content.Role)
 
 	// iterate over the candidate parts, only one struct member
@@ -668,14 +687,19 @@ func translateCandidate(cand *genai.Candidate) *ai.ModelResponse {
 		msg.Content = append(msg.Content, p)
 	}
 	m.Message = msg
-	return m
+	return m, nil
 }
 
 // Translate from a genai.GenerateContentResponse to a ai.ModelResponse.
-func translateResponse(resp *genai.GenerateContentResponse) *ai.ModelResponse {
+func translateResponse(resp *genai.GenerateContentResponse) (*ai.ModelResponse, error) {
 	var r *ai.ModelResponse
+	var err error
 	if len(resp.Candidates) > 0 {
-		r = translateCandidate(resp.Candidates[0])
+		r, err = translateCandidate(resp.Candidates[0])
+		if err != nil {
+			return nil, err
+		}
+
 	} else {
 		r = &ai.ModelResponse{}
 	}
@@ -691,7 +715,7 @@ func translateResponse(resp *genai.GenerateContentResponse) *ai.ModelResponse {
 		r.Usage.CachedContentTokens = int(u.CachedContentTokenCount)
 		r.Usage.ThoughtsTokens = int(u.ThoughtsTokenCount)
 	}
-	return r
+	return r, nil
 }
 
 // toGeminiParts converts a slice of [ai.Part] to a slice of [genai.Part].

@@ -26,16 +26,17 @@ import (
 	ollamaPlugin "github.com/firebase/genkit/go/plugins/ollama"
 )
 
-var serverAddress = flag.String("server-address", "http://localhost:11434", "Ollama server address")
-var modelName = flag.String("model-name", "tinyllama", "model name")
-var testLive = flag.Bool("test-live", false, "run live tests")
+var (
+	serverAddress = flag.String("server-address", "http://localhost:11434", "Ollama server address")
+	modelName     = flag.String("model-name", "tinyllama", "model name")
+	testLive      = flag.Bool("test-live", false, "run live tests")
+)
 
 /*
 To run this test, you need to have the Ollama server running. You can set the server address using the OLLAMA_SERVER_ADDRESS environment variable.
 If the environment variable is not set, the test will default to http://localhost:11434 (the default address for the Ollama server).
 */
 func TestLive(t *testing.T) {
-
 	if !*testLive {
 		t.Skip("skipping go/plugins/ollama live test")
 	}
