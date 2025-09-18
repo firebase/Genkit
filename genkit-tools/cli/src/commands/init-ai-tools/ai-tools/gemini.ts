@@ -16,48 +16,29 @@
 
 import { Runtime } from '@genkit-ai/tools-common/manager';
 import { logger } from '@genkit-ai/tools-common/utils';
-import { select } from '@inquirer/prompts';
 import { existsSync, readFileSync } from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
+import { lstat, mkdir, readlink, symlink, writeFile } from 'fs/promises';
+import * as path from 'path';
 import { AIToolConfigResult, AIToolModule, InitConfigOptions } from '../types';
-import {
-  GENKIT_PROMPT_PATH,
-  initGenkitFile,
-  initOrReplaceFile,
-  updateContentInPlace,
-} from '../utils';
+import { GENKIT_PROMPT_PATH, initGenkitFile } from '../utils';
 
 // GEMINI specific paths
 const GEMINI_DIR = '.gemini';
 const GEMINI_SETTINGS_PATH = path.join(GEMINI_DIR, 'settings.json');
-const GEMINI_MD_PATH = path.join('GEMINI.md');
+const GENKIT_MD_SYMLINK_PATH = path.join(GEMINI_DIR, GENKIT_PROMPT_PATH);
 
 // GENKIT specific constants
-const GENKIT_EXT_DIR = path.join(GEMINI_DIR, 'extensions', 'genkit');
-const GENKIT_MD_REL_PATH = path.join('..', '..', '..', GENKIT_PROMPT_PATH);
-const GENKIT_EXTENSION_CONFIG = {
-  name: 'genkit',
-  version: '1.0.0',
-  mcpServers: {
-    genkit: {
-      command: 'genkit',
-      args: ['mcp', '--no-update-notification'],
-      cwd: '.',
-      timeout: 30000,
-      trust: false,
-      excludeTools: [
-        'run_shell_command(genkit start)',
-        'run_shell_command(npx genkit start)',
-      ],
-    },
-  },
-  contextFileName: GENKIT_MD_REL_PATH,
+const GENKIT_MCP_CONFIG = {
+  command: 'genkit',
+  args: ['mcp', '--no-update-notification'],
+  cwd: '.',
+  timeout: 30000,
+  trust: false,
+  excludeTools: [
+    'run_shell_command(genkit start)',
+    'run_shell_command(npx genkit start)',
+  ],
 };
-
-const EXT_INSTALLATION = 'extension';
-const MD_INSTALLATION = 'geminimd';
-type InstallationType = typeof EXT_INSTALLATION | typeof MD_INSTALLATION;
 
 /** Configuration module for Gemini CLI */
 export const gemini: AIToolModule = {
@@ -71,33 +52,8 @@ export const gemini: AIToolModule = {
     runtime: Runtime,
     options?: InitConfigOptions
   ): Promise<AIToolConfigResult> {
-    let installationMethod: InstallationType = EXT_INSTALLATION;
-    if (!options?.yesMode) {
-      installationMethod = await select({
-        message: 'Select your preferred installation method',
-        choices: [
-          {
-            name: 'Gemini CLI Extension',
-            value: 'extension',
-            description:
-              'Use Gemini Extension to install Genkit context in a modular fashion',
-          },
-          {
-            name: 'GEMINI.md',
-            value: 'geminimd',
-            description: 'Incorporate Genkit context within the GEMINI.md file',
-          },
-        ],
-      });
-    }
-
-    if (installationMethod === EXT_INSTALLATION) {
-      logger.info('Installing as part of GEMINI.md');
-      return await installAsExtension(runtime);
-    } else {
-      logger.info('Installing as Gemini CLI extension');
-      return await installInMdFile(runtime);
-    }
+    logger.info('Installing as part of GEMINI.md');
+    return await installInMdFile(runtime);
   },
 };
 
@@ -125,8 +81,19 @@ async function installInMdFile(runtime: Runtime): Promise<AIToolConfigResult> {
     if (!existingConfig.mcpServers) {
       existingConfig.mcpServers = {};
     }
-    existingConfig.mcpServers.genkit =
-      GENKIT_EXTENSION_CONFIG.mcpServers.genkit;
+    existingConfig.mcpServers.genkit = GENKIT_MCP_CONFIG;
+
+    if (existingConfig.contextFileName) {
+      const contextFiles = Array.isArray(existingConfig.contextFileName)
+        ? [...existingConfig.contextFileName]
+        : [existingConfig.contextFileName];
+      if (!contextFiles.includes('GENKIT.md')) {
+        contextFiles.push('GENKIT.md');
+      }
+      existingConfig.contextFileName = contextFiles;
+    } else {
+      existingConfig.contextFileName = 'GENKIT.md';
+    }
     await writeFile(
       GEMINI_SETTINGS_PATH,
       JSON.stringify(existingConfig, null, 2)
@@ -140,48 +107,47 @@ async function installInMdFile(runtime: Runtime): Promise<AIToolConfigResult> {
   const baseResult = await initGenkitFile(runtime);
   files.push({ path: GENKIT_PROMPT_PATH, updated: baseResult.updated });
 
-  logger.info('Updating GEMINI.md to include Genkit context');
-  const geminiImportTag = `\nGenkit Framework Instructions:\n - @./GENKIT.md\n`;
-  const { updated: mdUpdated } = await updateContentInPlace(
-    GEMINI_MD_PATH,
-    geminiImportTag,
-    { hash: baseResult.hash }
-  );
-  files.push({ path: GEMINI_MD_PATH, updated: mdUpdated });
-
-  return { files };
-}
-
-async function installAsExtension(
-  runtime: Runtime
-): Promise<AIToolConfigResult> {
-  const files: AIToolConfigResult['files'] = [];
-  // Part 1: Generate GENKIT.md file.
-  const baseResult = await initGenkitFile(runtime);
-  files.push({ path: GENKIT_PROMPT_PATH, updated: baseResult.updated });
-
-  // Part 2: Configure the main gemini-extension.json file, and gemini config directory if needed.
-  logger.info('Configuring extentions files in user workspace');
-  await mkdir(GENKIT_EXT_DIR, { recursive: true });
-  const extensionPath = path.join(GENKIT_EXT_DIR, 'gemini-extension.json');
-
-  let extensionUpdated = false;
+  logger.info('Adding a symlink for GENKIT.md in the .gemini folder');
+  // Check if symlink already exists
   try {
-    const { updated } = await initOrReplaceFile(
-      extensionPath,
-      JSON.stringify(GENKIT_EXTENSION_CONFIG, null, 2)
-    );
-    extensionUpdated = updated;
-    if (extensionUpdated) {
-      logger.info(
-        `Genkit extension for Gemini CLI initialized at ${extensionPath}`
+    const stats = await lstat(GENKIT_MD_SYMLINK_PATH);
+    if (stats.isSymbolicLink()) {
+      // Verify the symlink points to the correct target
+      const linkTarget = await readlink(GENKIT_MD_SYMLINK_PATH);
+      const expectedTarget = path.relative(GEMINI_DIR, GENKIT_PROMPT_PATH);
+
+      if (linkTarget === expectedTarget || linkTarget === GENKIT_PROMPT_PATH) {
+        logger.info(
+          'Symlink already exists and points to the correct location'
+        );
+        files.push({ path: GENKIT_MD_SYMLINK_PATH, updated: false });
+      } else {
+        logger.warn(
+          'Symlink exists but points to wrong location. Please remove this file and try again if this was not intentional.'
+        );
+        files.push({ path: GENKIT_MD_SYMLINK_PATH, updated: false });
+      }
+    } else {
+      // File exists but is not a symlink
+      logger.warn(
+        `${GENKIT_MD_SYMLINK_PATH} exists but is not a symlink, skipping symlink creation`
       );
+      files.push({ path: GENKIT_MD_SYMLINK_PATH, updated: false });
     }
-  } catch (err) {
-    logger.error(err);
-    process.exit(1);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Symlink doesn't exist, create it
+      await symlink(
+        path.relative(GEMINI_DIR, GENKIT_PROMPT_PATH),
+        GENKIT_MD_SYMLINK_PATH
+      );
+      files.push({ path: GENKIT_MD_SYMLINK_PATH, updated: true });
+    } else {
+      // Some other error occurred
+      logger.error('Error checking symlink:', error);
+      throw error;
+    }
   }
-  files.push({ path: extensionPath, updated: extensionUpdated });
 
   return { files };
 }
