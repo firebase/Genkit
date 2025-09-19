@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import type { Genkit } from 'genkit';
 import { logger } from 'genkit/logging';
 import type { ModelMiddleware } from 'genkit/model';
-import { genkitPlugin, type GenkitPlugin } from 'genkit/plugin';
+import { genkitPluginV2, type GenkitPluginV2 } from 'genkit/plugin';
 import { GoogleAuth, type GoogleAuthOptions } from 'google-auth-library';
 import { checksEvaluators } from './evaluation.js';
 import {
@@ -47,23 +46,26 @@ const CHECKS_OAUTH_SCOPE = 'https://www.googleapis.com/auth/checks';
 /**
  * Add Google Checks evaluators.
  */
-export function checks(options?: PluginOptions): GenkitPlugin {
-  return genkitPlugin('checks', async (ai: Genkit) => {
-    const googleAuth = inititializeAuth(options?.googleAuthOptions);
+export function checks(options?: PluginOptions): GenkitPluginV2 {
+  return genkitPluginV2({
+    name: 'checks',
+    init: async () => {
+      const googleAuth = inititializeAuth(options?.googleAuthOptions);
 
-    const projectId = options?.projectId || (await googleAuth.getProjectId());
+      const projectId = options?.projectId || (await googleAuth.getProjectId());
 
-    if (!projectId) {
-      throw new Error(
-        `Checks Plugin is missing the 'projectId' configuration. Please set the 'GCLOUD_PROJECT' environment variable or explicitly pass 'projectId' into genkit config.`
-      );
-    }
+      if (!projectId) {
+        throw new Error(
+          `Checks Plugin is missing the 'projectId' configuration. Please set the 'GCLOUD_PROJECT' environment variable or explicitly pass 'projectId' into Genkit config.`
+        );
+      }
 
-    const metrics =
-      options?.evaluation && options.evaluation.metrics.length > 0
-        ? options.evaluation.metrics
-        : [];
-    checksEvaluators(ai, googleAuth, metrics, projectId);
+      const metrics =
+        options?.evaluation && options.evaluation.metrics.length > 0
+          ? options.evaluation.metrics
+          : [];
+      return checksEvaluators(googleAuth, metrics, projectId);
+    },
   });
 }
 

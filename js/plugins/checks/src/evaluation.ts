@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { z, type EvaluatorAction, type Genkit } from 'genkit';
+import { z, type EvaluatorAction } from 'genkit';
 import type { BaseEvalDataPoint } from 'genkit/evaluator';
+import { evaluator } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import type { GoogleAuth } from 'google-auth-library';
 import {
@@ -25,11 +26,10 @@ import {
 } from './metrics';
 
 export function checksEvaluators(
-  ai: Genkit,
   auth: GoogleAuth,
   metrics: ChecksEvaluationMetric[],
   projectId: string
-): EvaluatorAction {
+): EvaluatorAction[] {
   const policy_configs: ChecksEvaluationMetricConfig[] = metrics.map(
     (metric) => {
       const metricType = isConfig(metric) ? metric.type : metric;
@@ -42,7 +42,10 @@ export function checksEvaluators(
     }
   );
 
-  return createPolicyEvaluator(projectId, auth, ai, policy_configs);
+  if (metrics.length === 0) {
+    return [];
+  }
+  return [createPolicyEvaluator(projectId, auth, policy_configs)];
 }
 
 const ResponseSchema = z.object({
@@ -58,10 +61,9 @@ const ResponseSchema = z.object({
 function createPolicyEvaluator(
   projectId: string,
   auth: GoogleAuth,
-  ai: Genkit,
   policy_config: ChecksEvaluationMetricConfig[]
 ): EvaluatorAction {
-  return ai.defineEvaluator(
+  return evaluator(
     {
       name: 'checks/guardrails',
       displayName: 'checks/guardrails',
@@ -83,7 +85,6 @@ function createPolicyEvaluator(
       };
 
       const response = await checksEvalInstance(
-        ai,
         projectId,
         auth,
         partialRequest,
@@ -109,14 +110,12 @@ function createPolicyEvaluator(
 }
 
 async function checksEvalInstance<ResponseType extends z.ZodTypeAny>(
-  ai: Genkit,
   projectId: string,
   auth: GoogleAuth,
   partialRequest: any,
   responseSchema: ResponseType
 ): Promise<z.infer<ResponseType>> {
   return await runInNewSpan(
-    ai,
     {
       metadata: {
         name: 'EvaluationService#evaluateInstances',
