@@ -20,7 +20,6 @@ import {
   z,
   type ActionMetadata,
   type EmbedderReference,
-  type Genkit,
   type ModelReference,
   type ToolRequest,
   type ToolRequestPart,
@@ -38,8 +37,12 @@ import {
   type ModelInfo,
   type ToolDefinition,
 } from 'genkit/model';
-import { genkitPlugin, type GenkitPlugin } from 'genkit/plugin';
-import type { ActionType } from 'genkit/registry';
+import {
+  genkitPluginV2,
+  model,
+  type GenkitPluginV2,
+  type ResolvableAction,
+} from 'genkit/plugin';
 import { defineOllamaEmbedder } from './embeddings.js';
 import type {
   ApiType,
@@ -56,7 +59,7 @@ import type {
 export type { OllamaPluginParams };
 
 export type OllamaPlugin = {
-  (params?: OllamaPluginParams): GenkitPlugin;
+  (params?: OllamaPluginParams): GenkitPluginV2;
 
   model(
     name: string,
@@ -82,42 +85,121 @@ const GENERIC_MODEL_INFO = {
 
 const DEFAULT_OLLAMA_SERVER_ADDRESS = 'http://localhost:11434';
 
-async function initializer(
-  ai: Genkit,
-  serverAddress: string,
-  params?: OllamaPluginParams
-) {
-  params?.models?.map((model) =>
-    defineOllamaModel(ai, model, serverAddress, params?.requestHeaders)
-  );
-  params?.embedders?.map((model) =>
-    defineOllamaEmbedder(ai, {
-      name: model.name,
-      modelName: model.name,
-      dimensions: model.dimensions,
-      options: params!,
-    })
-  );
-}
-
-function resolveAction(
-  ai: Genkit,
-  actionType: ActionType,
-  actionName: string,
+function createOllamaModel(
+  modelDef: ModelDefinition,
   serverAddress: string,
   requestHeaders?: RequestHeaders
 ) {
-  // We can only dynamically resolve models, for embedders user must provide dimensions.
-  if (actionType === 'model') {
-    defineOllamaModel(
-      ai,
-      {
-        name: actionName,
+  return model(
+    {
+      name: modelDef.name,
+      label: `Ollama - ${modelDef.name}`,
+      configSchema: OllamaConfigSchema,
+      supports: {
+        multiturn: !modelDef.type || modelDef.type === 'chat',
+        systemRole: true,
+        tools: modelDef.supports?.tools,
       },
-      serverAddress,
-      requestHeaders
-    );
-  }
+    },
+    async (request, opts) => {
+      const { topP, topK, stopSequences, maxOutputTokens, ...rest } =
+        request.config as any;
+      const options: Record<string, any> = { ...rest };
+      if (topP !== undefined) {
+        options.top_p = topP;
+      }
+      if (topK !== undefined) {
+        options.top_k = topK;
+      }
+      if (stopSequences !== undefined) {
+        options.stop = stopSequences.join('');
+      }
+      if (maxOutputTokens !== undefined) {
+        options.num_predict = maxOutputTokens;
+      }
+      const type = modelDef.type ?? 'chat';
+      const ollamaRequest = toOllamaRequest(
+        modelDef.name,
+        request,
+        options,
+        type,
+        !!opts
+      );
+      logger.debug(ollamaRequest, `ollama request (${type})`);
+
+      const extraHeaders = await getHeaders(
+        serverAddress,
+        requestHeaders,
+        modelDef,
+        request
+      );
+      let res;
+      try {
+        res = await fetch(
+          serverAddress + (type === 'chat' ? '/api/chat' : '/api/generate'),
+          {
+            method: 'POST',
+            body: JSON.stringify(ollamaRequest),
+            headers: {
+              'Content-Type': 'application/json',
+              ...extraHeaders,
+            },
+          }
+        );
+      } catch (e) {
+        const cause = (e as any).cause;
+        if (
+          cause &&
+          cause instanceof Error &&
+          cause.message?.includes('ECONNREFUSED')
+        ) {
+          cause.message += '. Make sure the Ollama server is running.';
+          throw cause;
+        }
+        throw e;
+      }
+      if (!res.body) {
+        throw new Error('Response has no body');
+      }
+
+      let message: MessageData;
+
+      if (opts.sendChunk) {
+        const reader = res.body.getReader();
+        const textDecoder = new TextDecoder();
+        let textResponse = '';
+        for await (const chunk of readChunks(reader)) {
+          const chunkText = textDecoder.decode(chunk);
+          const json = JSON.parse(chunkText);
+          const message = parseMessage(json, type);
+          opts.sendChunk({
+            content: message.content,
+          });
+          textResponse += message.content[0].text;
+        }
+        message = {
+          role: 'model',
+          content: [
+            {
+              text: textResponse,
+            },
+          ],
+        };
+      } else {
+        const txtBody = await res.text();
+        const json = JSON.parse(txtBody);
+        logger.debug(txtBody, 'ollama raw response');
+
+        message = parseMessage(json, type);
+      }
+
+      return {
+        message,
+        usage: getBasicUsageStats(request.messages, message),
+        finishReason: 'stop',
+      } as GenerateResponseData;
+    }
+  );
 }
 
 async function listActions(
@@ -131,14 +213,14 @@ async function listActions(
       ?.filter((m) => m.model && !m.model.includes('embed'))
       .map((m) =>
         modelActionMetadata({
-          name: `ollama/${m.model}`,
+          name: m.model,
           info: GENERIC_MODEL_INFO,
         })
       ) || []
   );
 }
 
-function ollamaPlugin(params?: OllamaPluginParams): GenkitPlugin {
+function ollamaPlugin(params?: OllamaPluginParams): GenkitPluginV2 {
   if (!params) {
     params = {};
   }
@@ -146,22 +228,52 @@ function ollamaPlugin(params?: OllamaPluginParams): GenkitPlugin {
     params.serverAddress = DEFAULT_OLLAMA_SERVER_ADDRESS;
   }
   const serverAddress = params.serverAddress;
-  return genkitPlugin(
-    'ollama',
-    async (ai: Genkit) => {
-      await initializer(ai, serverAddress, params);
+
+  return genkitPluginV2({
+    name: 'ollama',
+    async init() {
+      const actions: ResolvableAction[] = [];
+
+      if (params?.models) {
+        for (const model of params.models) {
+          actions.push(
+            await createOllamaModel(model, serverAddress, params.requestHeaders)
+          );
+        }
+      }
+
+      if (params?.embedders) {
+        for (const embedder of params.embedders) {
+          actions.push(
+            defineOllamaEmbedder({
+              name: embedder.name,
+              modelName: embedder.name,
+              dimensions: embedder.dimensions,
+              options: params,
+            })
+          );
+        }
+      }
+
+      return actions;
     },
-    async (ai, actionType, actionName) => {
-      resolveAction(
-        ai,
-        actionType,
-        actionName,
-        serverAddress,
-        params?.requestHeaders
-      );
+    async resolve(actionType, actionName) {
+      // dynamically resolve models, for embedders user must provide dimensions.
+      if (actionType === 'model') {
+        return await createOllamaModel(
+          {
+            name: actionName,
+          },
+          serverAddress,
+          params?.requestHeaders
+        );
+      }
+      return undefined;
     },
-    async () => await listActions(serverAddress, params?.requestHeaders)
-  );
+    async list() {
+      return await listActions(serverAddress, params?.requestHeaders);
+    },
+  });
 }
 
 async function listLocalModels(
@@ -217,124 +329,7 @@ export const OllamaConfigSchema = GenerationCommonConfigSchema.extend({
     .optional(),
 });
 
-function defineOllamaModel(
-  ai: Genkit,
-  model: ModelDefinition,
-  serverAddress: string,
-  requestHeaders?: RequestHeaders
-) {
-  return ai.defineModel(
-    {
-      name: `ollama/${model.name}`,
-      label: `Ollama - ${model.name}`,
-      configSchema: OllamaConfigSchema,
-      supports: {
-        multiturn: !model.type || model.type === 'chat',
-        systemRole: true,
-        tools: model.supports?.tools,
-      },
-    },
-    async (input, streamingCallback) => {
-      const { topP, topK, stopSequences, maxOutputTokens, ...rest } =
-        input.config as any;
-      const options: Record<string, any> = { ...rest };
-      if (topP !== undefined) {
-        options.top_p = topP;
-      }
-      if (topK !== undefined) {
-        options.top_k = topK;
-      }
-      if (stopSequences !== undefined) {
-        options.stop = stopSequences.join('');
-      }
-      if (maxOutputTokens !== undefined) {
-        options.num_predict = maxOutputTokens;
-      }
-      const type = model.type ?? 'chat';
-      const request = toOllamaRequest(
-        model.name,
-        input,
-        options,
-        type,
-        !!streamingCallback
-      );
-      logger.debug(request, `ollama request (${type})`);
-
-      const extraHeaders = await getHeaders(
-        serverAddress,
-        requestHeaders,
-        model,
-        input
-      );
-      let res;
-      try {
-        res = await fetch(
-          serverAddress + (type === 'chat' ? '/api/chat' : '/api/generate'),
-          {
-            method: 'POST',
-            body: JSON.stringify(request),
-            headers: {
-              'Content-Type': 'application/json',
-              ...extraHeaders,
-            },
-          }
-        );
-      } catch (e) {
-        const cause = (e as any).cause;
-        if (
-          cause &&
-          cause instanceof Error &&
-          cause.message?.includes('ECONNREFUSED')
-        ) {
-          cause.message += '. Make sure the Ollama server is running.';
-          throw cause;
-        }
-        throw e;
-      }
-      if (!res.body) {
-        throw new Error('Response has no body');
-      }
-
-      let message: MessageData;
-
-      if (streamingCallback) {
-        const reader = res.body.getReader();
-        const textDecoder = new TextDecoder();
-        let textResponse = '';
-        for await (const chunk of readChunks(reader)) {
-          const chunkText = textDecoder.decode(chunk);
-          const json = JSON.parse(chunkText);
-          const message = parseMessage(json, type);
-          streamingCallback({
-            index: 0,
-            content: message.content,
-          });
-          textResponse += message.content[0].text;
-        }
-        message = {
-          role: 'model',
-          content: [
-            {
-              text: textResponse,
-            },
-          ],
-        };
-      } else {
-        const txtBody = await res.text();
-        const json = JSON.parse(txtBody);
-        logger.debug(txtBody, 'ollama raw response');
-
-        message = parseMessage(json, type);
-      }
-
-      return {
-        message,
-        usage: getBasicUsageStats(input.messages, message),
-        finishReason: 'stop',
-      } as GenerateResponseData;
-    }
-  );
-}
+// toOllamaEmbedRequest is now in embeddings.ts
 
 function parseMessage(response: any, type: ApiType): MessageData {
   if (response.error) {

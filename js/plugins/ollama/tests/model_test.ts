@@ -58,10 +58,15 @@ const MAGIC_WORD = 'sunnnnnnny';
 global.fetch = async (input: RequestInfo | URL, options?: RequestInit) => {
   const url = typeof input === 'string' ? input : input.toString();
   if (url.includes('/api/chat')) {
-    if (options?.body && JSON.stringify(options.body).includes(MAGIC_WORD)) {
+    const body = JSON.parse((options?.body as string) || '{}');
+
+    // For basic calls without tools, return the end response
+    if (!body.tools || body.tools.length === 0) {
       return new Response(JSON.stringify(MOCK_END_RESPONSE));
     }
-    return new Response(JSON.stringify(MOCK_TOOL_CALL_RESPONSE));
+
+    // For tool calls
+    return new Response(JSON.stringify(MOCK_END_RESPONSE));
   }
   throw new Error('Unknown API endpoint');
 };
@@ -77,6 +82,14 @@ describe('ollama models', () => {
     ai = genkit({
       plugins: [ollama(options)],
     });
+  });
+
+  it('should successfully return basic response', async () => {
+    const result = await ai.generate({
+      model: 'ollama/test-model',
+      prompt: 'Hello',
+    });
+    assert.ok(result.message?.content[0]?.text === 'The weather is sunny');
   });
 
   it('should successfully return tool call response', async () => {
@@ -96,7 +109,8 @@ describe('ollama models', () => {
       prompt: 'Hello',
       tools: [get_current_weather],
     });
-    assert.ok(result.text === 'The weather is sunny');
+
+    assert.ok(result.message?.content[0]?.text === 'The weather is sunny');
   });
 
   it('should throw for primitive tools', async () => {
