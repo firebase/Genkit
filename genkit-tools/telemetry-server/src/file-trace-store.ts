@@ -15,6 +15,7 @@
  */
 
 import {
+  SpanData,
   TraceDataSchema,
   type TraceData,
   type TraceQueryFilter,
@@ -29,6 +30,7 @@ import { version as currentVersion } from './utils/version';
 
 const MAX_TRACES = 1000;
 const MAX_INDEX_FILES = 10;
+const MAX_LIST_ATTR_LENGTH = 1000;
 
 /**
  * Implementation of trace store that persists traces on local disk.
@@ -148,7 +150,7 @@ export class LocalFileTraceStore implements TraceStore {
         path.resolve(this.storeRoot, `${id}`),
         JSON.stringify(trace)
       );
-      const hasRootSpan = !!Object.values(trace.spans).find(
+      const hasRootSpan = !!Object.values(rawTrace.spans).find(
         (s) => !s.parentSpanId
       );
       if (this.index && hasRootSpan) {
@@ -176,7 +178,7 @@ export class LocalFileTraceStore implements TraceStore {
     });
 
     const loadedTraces = await Promise.all(
-      searchResult.data.map((d) => this.load(d['id']))
+      searchResult.data.map((d) => this.load(d['id']).then(trucateTraceDetails))
     );
 
     return {
@@ -236,6 +238,48 @@ export class LocalFileTraceStore implements TraceStore {
     }
     return trace;
   }
+}
+
+function trucateTraceDetails(t?: TraceData): TraceData | undefined {
+  if (!t) return t;
+
+  const { spans: originalSpans, ...restOfTrace } = t;
+
+  const spans = {} as Record<string, SpanData>;
+  for (const spanId of Object.keys(originalSpans)) {
+    if (!originalSpans[spanId].parentSpanId) {
+      const { attributes: originalAttributes, ...restOfSpan } =
+        originalSpans[spanId];
+      spans[spanId] = {
+        attributes: trucateLargeAttrs(originalAttributes),
+        ...restOfSpan,
+      } as SpanData;
+      break;
+    }
+  }
+
+  return { spans, ...restOfTrace };
+}
+
+export function trucateLargeAttrs<T>(input: T): T {
+  if (
+    input === undefined ||
+    input === null ||
+    Array.isArray(input) ||
+    typeof input !== 'object'
+  ) {
+    return input;
+  }
+  for (const key in input) {
+    if (
+      typeof input[key] === 'string' &&
+      (input[key] as string).length > MAX_LIST_ATTR_LENGTH
+    ) {
+      input[key] = ((input[key] as string).substring(0, MAX_LIST_ATTR_LENGTH) +
+        '...') as any;
+    }
+  }
+  return input;
 }
 
 export interface IndexSearchResult {

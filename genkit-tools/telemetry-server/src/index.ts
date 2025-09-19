@@ -23,7 +23,7 @@ import express from 'express';
 import type * as http from 'http';
 import type { TraceStore } from './types';
 
-export { LocalFileTraceStore } from './localFileTraceStore.js';
+export { LocalFileTraceStore } from './file-trace-store.js';
 export { TraceQuerySchema, type TraceQuery, type TraceStore } from './types';
 
 let server: http.Server;
