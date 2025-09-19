@@ -15,7 +15,6 @@
  */
 
 import * as assert from 'assert';
-import { Genkit } from 'genkit';
 import { GenerateRequest, getBasicUsageStats } from 'genkit/model';
 import { GoogleAuth } from 'google-auth-library';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -30,8 +29,8 @@ import {
   ImagenConfig,
   ImagenConfigSchema,
   TEST_ONLY,
+  createModelRef,
   defineModel,
-  model,
 } from '../../src/vertexai/imagen.js';
 import {
   ClientOptions,
@@ -55,14 +54,14 @@ describe('Vertex AI Imagen', () => {
   describe('model()', () => {
     it('should return a ModelReference for a known model', () => {
       const modelName = 'imagen-3.0-generate-002';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
       assert.strictEqual(ref.name, `vertexai/${modelName}`);
       assert.ok(ref.info?.supports?.media);
     });
 
     it('should return a ModelReference for an unknown model using generic info', () => {
       const modelName = 'imagen-unknown-model';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
       assert.strictEqual(ref.name, `vertexai/${modelName}`);
       assert.deepStrictEqual(ref.info, TEST_ONLY.GENERIC_MODEL.info);
     });
@@ -70,7 +69,7 @@ describe('Vertex AI Imagen', () => {
     it('should apply config to a known model', () => {
       const modelName = 'imagen-3.0-generate-002';
       const config: ImagenConfig = { seed: 123 };
-      const ref = model(modelName, config);
+      const ref = createModelRef(modelName, config);
       assert.strictEqual(ref.name, `vertexai/${modelName}`);
       assert.deepStrictEqual(ref.config, config);
     });
@@ -78,20 +77,19 @@ describe('Vertex AI Imagen', () => {
     it('should apply config to an unknown model', () => {
       const modelName = 'imagen-unknown-model';
       const config: ImagenConfig = { aspectRatio: '16:9' };
-      const ref = model(modelName, config);
+      const ref = createModelRef(modelName, config);
       assert.strictEqual(ref.name, `vertexai/${modelName}`);
       assert.deepStrictEqual(ref.config, config);
     });
 
     it('should handle full model path', () => {
       const modelName = 'tunedModels/my-tuned-model';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
       assert.strictEqual(ref.name, 'vertexai/tunedModels/my-tuned-model');
     });
   });
 
   describe('defineImagenModel()', () => {
-    let mockAi: sinon.SinonStubbedInstance<Genkit>;
     let fetchStub: sinon.SinonStub;
     const modelName = 'imagen-test-model';
     let authMock: sinon.SinonStubbedInstance<GoogleAuth>;
@@ -112,7 +110,6 @@ describe('Vertex AI Imagen', () => {
     };
 
     beforeEach(() => {
-      mockAi = sinon.createStubInstance(Genkit);
       fetchStub = sinon.stub(global, 'fetch');
       authMock = sinon.createStubInstance(GoogleAuth);
       authMock.getAccessToken.resolves('test-token');
@@ -133,15 +130,10 @@ describe('Vertex AI Imagen', () => {
       fetchStub.resolves(Promise.resolve(response));
     }
 
-    function captureModelRunner(
-      clientOptions: ClientOptions
-    ): (request: GenerateRequest, options: any) => Promise<any> {
-      defineModel(mockAi as any, modelName, clientOptions);
-      assert.ok(mockAi.defineModel.calledOnce);
-      const callArgs = mockAi.defineModel.firstCall.args;
-      assert.strictEqual(callArgs[0].name, `vertexai/${modelName}`);
-      assert.strictEqual(callArgs[0].configSchema, ImagenConfigSchema);
-      return callArgs[1];
+    function captureModelRunner(clientOptions: ClientOptions) {
+      const modelAction = defineModel(modelName, clientOptions);
+      assert.strictEqual(modelAction.__action.name, `vertexai/${modelName}`);
+      return modelAction;
     }
 
     function getExpectedHeaders(
@@ -185,8 +177,8 @@ describe('Vertex AI Imagen', () => {
         };
         mockFetchResponse(mockResponse);
 
-        const modelRunner = captureModelRunner(clientOptions);
-        const result = await modelRunner(request, {});
+        const modelAction = captureModelRunner(clientOptions);
+        const result = await modelAction(request, {});
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -222,9 +214,9 @@ describe('Vertex AI Imagen', () => {
         };
         mockFetchResponse({ predictions: [] });
 
-        const modelRunner = captureModelRunner(clientOptions);
+        const modelAction = captureModelRunner(clientOptions);
         await assert.rejects(
-          modelRunner(request, {}),
+          modelAction(request, {}),
           /Model returned no predictions/
         );
         sinon.assert.calledOnce(fetchStub);
@@ -237,9 +229,9 @@ describe('Vertex AI Imagen', () => {
         const error = new Error('Network Error');
         fetchStub.rejects(error);
 
-        const modelRunner = captureModelRunner(clientOptions);
+        const modelAction = captureModelRunner(clientOptions);
         await assert.rejects(
-          modelRunner(request, {}),
+          modelAction(request, {}),
           new RegExp(
             `^Error: Failed to fetch from ${escapeRegExp(expectedUrl)}: Network Error`
           )
@@ -254,10 +246,10 @@ describe('Vertex AI Imagen', () => {
         const errorBody = { error: { message: errorMsg, code: 400 } };
         mockFetchResponse(errorBody, 400);
 
-        const modelRunner = captureModelRunner(clientOptions);
+        const modelAction = captureModelRunner(clientOptions);
         let expectedUrlRegex = escapeRegExp(expectedUrl);
         await assert.rejects(
-          modelRunner(request, {}),
+          modelAction(request, {}),
           new RegExp(
             `^Error: Failed to fetch from ${expectedUrlRegex}: Error fetching from ${expectedUrlRegex}: \\[400 Error\\] ${errorMsg}`
           )

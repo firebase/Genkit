@@ -186,7 +186,7 @@ describe('VertexAI Plugin', () => {
   describe('Helper Functions', () => {
     it('vertexAI.model should return a ModelReference for Gemini with correct schema', () => {
       const modelName = 'gemini-2.0-flash';
-      const modelRef = vertexAI.model(modelName);
+      const modelRef = vertexAI.createModelRef(modelName);
       assert.strictEqual(
         modelRef.name,
         `vertexai/${modelName}`,
@@ -205,7 +205,7 @@ describe('VertexAI Plugin', () => {
 
     it('vertexAI.model should return a ModelReference for Imagen with correct schema', () => {
       const modelName = 'imagen-3.0-generate-002';
-      const modelRef = vertexAI.model(modelName);
+      const modelRef = vertexAI.createModelRef(modelName);
       assert.strictEqual(
         modelRef.name,
         `vertexai/${modelName}`,
@@ -232,7 +232,7 @@ describe('VertexAI Plugin', () => {
     });
   });
 
-  describe('listActions Function', () => {
+  describe('list Function', () => {
     let fetchMock: any;
 
     beforeEach(() => {
@@ -252,8 +252,8 @@ describe('VertexAI Plugin', () => {
 
     it('should return an empty array if no models are returned', async () => {
       fetchMock.mock.mockImplementation(async () => createMockResponse([]));
-      const pluginProvider = vertexAI()(ai);
-      const actions = await pluginProvider.listActions!();
+      const pluginProvider = vertexAI();
+      const actions = await pluginProvider.list!();
       assert.deepStrictEqual(actions, [], 'Should return an empty array');
     });
 
@@ -267,8 +267,8 @@ describe('VertexAI Plugin', () => {
       fetchMock.mock.mockImplementation(async () =>
         createMockResponse(mockModels)
       );
-      const pluginProvider = vertexAI()(ai);
-      const actions = await pluginProvider.listActions!();
+      const pluginProvider = vertexAI();
+      const actions = await pluginProvider.list!();
       const actionNames = actions.map((a) => a.name).sort();
       assert.deepStrictEqual(
         actionNames,
@@ -281,8 +281,8 @@ describe('VertexAI Plugin', () => {
 
     it('should call fetch with auth token and location-specific URL for local options', async () => {
       fetchMock.mock.mockImplementation(async () => createMockResponse([]));
-      const pluginProvider = vertexAI()(ai);
-      await pluginProvider.listActions!();
+      const pluginProvider = vertexAI();
+      await pluginProvider.list!();
 
       const fetchCall = fetchMock.mock.calls[0];
       const headers = fetchCall.arguments[1].headers;
@@ -303,8 +303,8 @@ describe('VertexAI Plugin', () => {
       UTILS_TEST_ONLY.setMockDerivedOptions(globalWithOptions);
       ai = genkit({ plugins: [vertexAI()] }); // Re-init
       fetchMock.mock.mockImplementation(async () => createMockResponse([]));
-      const pluginProvider = vertexAI()(ai);
-      await pluginProvider.listActions!();
+      const pluginProvider = vertexAI();
+      await pluginProvider.list!();
 
       const fetchCall = fetchMock.mock.calls[0];
       const headers = fetchCall.arguments[1].headers;
@@ -318,12 +318,12 @@ describe('VertexAI Plugin', () => {
       assert.ok(!url.includes('us-central1-'));
     });
 
-    it('should throw for listActions with express options', async () => {
+    it('should throw for list with express options', async () => {
       UTILS_TEST_ONLY.setMockDerivedOptions(expressMockDerivedOptions);
       ai = genkit({ plugins: [vertexAI()] }); // Re-init
       fetchMock.mock.mockImplementation(async () => createMockResponse([]));
-      const pluginProvider = vertexAI()(ai);
-      const actions = await pluginProvider.listActions!();
+      const pluginProvider = vertexAI();
+      const actions = await pluginProvider.list!();
       assert.strictEqual(actions.length, 0);
       assert.strictEqual(fetchMock.mock.calls.length, 0);
     });
@@ -354,7 +354,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should use auth token for Gemini generateContent', async () => {
-        const modelRef = vertexAI.model('gemini-1.5-flash');
+        const modelRef = vertexAI.createModelRef('gemini-1.5-flash');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );
@@ -409,7 +409,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should use auth token for Imagen predict', async () => {
-        const modelRef = vertexAI.model('imagen-3.0-generate-001');
+        const modelRef = vertexAI.createModelRef('imagen-3.0-generate-001');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );
@@ -442,7 +442,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should use API key for Gemini generateContent', async () => {
-        const modelRef = vertexAI.model('gemini-1.5-flash');
+        const modelRef = vertexAI.createModelRef('gemini-1.5-flash');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );
@@ -505,7 +505,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should use API key for Imagen predict', async () => {
-        const modelRef = vertexAI.model('imagen-3.0-generate-001');
+        const modelRef = vertexAI.createModelRef('imagen-3.0-generate-001');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );
@@ -537,7 +537,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should use API key for Gemini generateContent', async () => {
-        const modelRef = vertexAI.model('gemini-1.5-flash');
+        const modelRef = vertexAI.createModelRef('gemini-1.5-flash');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );
@@ -590,7 +590,7 @@ describe('VertexAI Plugin', () => {
       });
 
       it('should not support Imagen predict', async () => {
-        const modelRef = vertexAI.model('imagen-3.0-generate-001');
+        const modelRef = vertexAI.createModelRef('imagen-3.0-generate-001');
         const generateAction = await ai.registry.lookupAction(
           '/model/' + modelRef.name
         );

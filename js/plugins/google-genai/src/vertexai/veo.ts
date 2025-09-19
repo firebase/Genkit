@@ -20,9 +20,9 @@ import {
   modelActionMetadata,
   modelRef,
   z,
-  type Genkit,
 } from 'genkit';
 import { BackgroundModelAction, ModelInfo } from 'genkit/model';
+import { backgroundModel } from 'genkit/plugin';
 import { veoCheckOperation, veoPredict } from './client.js';
 import {
   fromVeoOperation,
@@ -143,7 +143,7 @@ export function isVeoModelName(value?: string): value is VeoModelName {
   return !!value?.startsWith('veo-');
 }
 
-export function model(
+export function createModelRef(
   version: string,
   config: VeoConfig = {}
 ): ModelReference<ConfigSchemaType> {
@@ -162,7 +162,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
   return models
     .filter((m: Model) => isVeoModelName(m.name))
     .map((m: Model) => {
-      const ref = model(m.name);
+      const ref = createModelRef(m.name);
       return modelActionMetadata({
         name: ref.name,
         info: ref.info,
@@ -172,24 +172,22 @@ export function listActions(models: Model[]): ActionMetadata[] {
 }
 
 export function defineKnownModels(
-  ai: Genkit,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
-) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, clientOptions, pluginOptions);
-  }
+): BackgroundModelAction<VeoConfigSchemaType>[] {
+  return Object.keys(KNOWN_MODELS).map((name) =>
+    defineModel(name, clientOptions, pluginOptions)
+  );
 }
 
 export function defineModel(
-  ai: Genkit,
   name: string,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
 ): BackgroundModelAction<VeoConfigSchemaType> {
-  const ref = model(name);
+  const ref = createModelRef(name);
 
-  return ai.defineBackgroundModel({
+  return backgroundModel({
     name: ref.name,
     ...ref.info,
     configSchema: ref.configSchema,

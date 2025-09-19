@@ -20,10 +20,10 @@ import {
   embedderActionMetadata,
   EmbedderInfo,
   EmbedderReference,
-  Genkit,
   z,
 } from 'genkit';
 import { embedderRef } from 'genkit/embedder';
+import { embedder } from 'genkit/plugin';
 import { embedContent } from './client.js';
 import {
   EmbedContentRequest,
@@ -90,7 +90,7 @@ const KNOWN_MODELS = {
 };
 export type KnownModels = keyof typeof KNOWN_MODELS; // For autocomplete
 
-export function model(
+export function createModelRef(
   version: string,
   config: EmbeddingConfig = {}
 ): EmbedderReference<ConfigSchemaType> {
@@ -112,7 +112,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const ref = model(m.name);
+        const ref = createModelRef(m.name);
         return embedderActionMetadata({
           name: ref.name,
           info: ref.info,
@@ -122,43 +122,42 @@ export function listActions(models: Model[]): ActionMetadata[] {
   );
 }
 
-export function defineKnownModels(ai: Genkit, options?: GoogleAIPluginOptions) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineEmbedder(ai, name, options);
-  }
+export function defineKnownModels(
+  options?: GoogleAIPluginOptions
+): EmbedderAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) => defineEmbedder(name, options));
 }
 
 export function defineEmbedder(
-  ai: Genkit,
   name: string,
   pluginOptions?: GoogleAIPluginOptions
 ): EmbedderAction {
   checkApiKey(pluginOptions?.apiKey);
-  const ref = model(name);
+  const ref = createModelRef(name);
 
-  return ai.defineEmbedder(
+  return embedder(
     {
       name: ref.name,
       configSchema: ref.configSchema,
       info: ref.info,
     },
-    async (input, reqOptions) => {
+    async (request, _) => {
       const embedApiKey = calculateApiKey(
         pluginOptions?.apiKey,
-        reqOptions?.apiKey
+        request.options?.apiKey
       );
-      const embedVersion = reqOptions?.version || extractVersion(ref);
+      const embedVersion = request.options?.version || extractVersion(ref);
 
       const embeddings = await Promise.all(
-        input.map(async (doc) => {
+        request.input.map(async (doc) => {
           const response = await embedContent(embedApiKey, embedVersion, {
-            taskType: reqOptions?.taskType,
-            title: reqOptions?.title,
+            taskType: request.options?.taskType,
+            title: request.options?.title,
             content: {
               role: '',
               parts: [{ text: doc.text }],
             },
-            outputDimensionality: reqOptions?.outputDimensionality,
+            outputDimensionality: request.options?.outputDimensionality,
           } as EmbedContentRequest);
           const values = response.embedding.values;
           return { embedding: values };

@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  ActionMetadata,
-  Genkit,
-  GenkitError,
-  modelActionMetadata,
-  z,
-} from 'genkit';
+import { ActionMetadata, GenkitError, modelActionMetadata, z } from 'genkit';
 import {
   GenerationCommonConfigDescriptions,
   GenerationCommonConfigSchema,
@@ -32,6 +26,7 @@ import {
   modelRef,
 } from 'genkit/model';
 import { downloadRequestMedia } from 'genkit/model/middleware';
+import { model } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import {
   fromGeminiCandidate,
@@ -363,7 +358,7 @@ export function isGeminiModelName(value?: string): value is GeminiModelName {
   return !!value?.startsWith('gemini-') && !value.includes('embedding');
 }
 
-export function model(
+export function createModelRef(
   version: string,
   options: GeminiConfig = {}
 ): ModelReference<typeof GeminiConfigSchema> {
@@ -394,7 +389,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
         !KNOWN_DECOMISSIONED_MODELS.includes(modelName(m.name) || '')
     )
     .map((m) => {
-      const ref = model(m.name);
+      const ref = createModelRef(m.name);
       return modelActionMetadata({
         name: ref.name,
         info: ref.info,
@@ -404,25 +399,23 @@ export function listActions(models: Model[]): ActionMetadata[] {
 }
 
 export function defineKnownModels(
-  ai: Genkit,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
-) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, clientOptions, pluginOptions);
-  }
+): ModelAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) =>
+    defineModel(name, clientOptions, pluginOptions)
+  );
 }
 
 /**
  * Define a Vertex AI Gemini model.
  */
 export function defineModel(
-  ai: Genkit,
   name: string,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
 ): ModelAction {
-  const ref = model(name);
+  const ref = createModelRef(name);
   const middlewares: ModelMiddleware[] = [];
   if (ref.info?.supports?.media) {
     // the gemini api doesn't support downloading media from http(s)
@@ -446,15 +439,15 @@ export function defineModel(
     );
   }
 
-  return ai.defineModel(
+  return model(
     {
-      apiVersion: 'v2',
       name: ref.name,
       ...ref.info,
       configSchema: ref.configSchema,
       use: middlewares,
     },
-    async (request, { streamingRequested, sendChunk, abortSignal }) => {
+    async (request, options) => {
+      const { streamingRequested, sendChunk, abortSignal } = options || {};
       let clientOpt = { ...clientOptions, signal: abortSignal };
 
       // Make a copy of messages to avoid side-effects
@@ -682,7 +675,6 @@ export function defineModel(
       const msg = toGeminiMessage(messages[messages.length - 1], ref);
       return pluginOptions?.experimental_debugTraces
         ? await runInNewSpan(
-            ai.registry,
             {
               metadata: {
                 name: streamingRequested ? 'sendMessageStream' : 'sendMessage',

@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  ActionMetadata,
-  Genkit,
-  GenkitError,
-  modelActionMetadata,
-  z,
-} from 'genkit';
+import { ActionMetadata, GenkitError, modelActionMetadata, z } from 'genkit';
 import {
   GenerationCommonConfigDescriptions,
   GenerationCommonConfigSchema,
@@ -32,6 +26,7 @@ import {
   modelRef,
 } from 'genkit/model';
 import { downloadRequestMedia } from 'genkit/model/middleware';
+import { model } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import {
   fromGeminiCandidate,
@@ -383,7 +378,7 @@ const KNOWN_MODELS = {
   ...KNOWN_GEMMA_MODELS,
 };
 
-export function model(
+export function createModelRef(
   version: string,
   config: GeminiConfig | GeminiTtsConfig | GemmaConfig = {}
 ): ModelReference<ConfigSchemaType> {
@@ -424,7 +419,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const ref = model(m.name);
+        const ref = createModelRef(m.name);
         return modelActionMetadata({
           name: ref.name,
           info: ref.info,
@@ -434,22 +429,21 @@ export function listActions(models: Model[]): ActionMetadata[] {
   );
 }
 
-export function defineKnownModels(ai: Genkit, options?: GoogleAIPluginOptions) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, options);
-  }
+export function defineKnownModels(
+  options?: GoogleAIPluginOptions
+): ModelAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) => defineModel(name, options));
 }
 
 /**
  * Defines a new GoogleAI Gemini model.
  */
 export function defineModel(
-  ai: Genkit,
   name: string,
   pluginOptions?: GoogleAIPluginOptions
 ): ModelAction {
   checkApiKey(pluginOptions?.apiKey);
-  const ref = model(name);
+  const ref = createModelRef(name);
   const clientOptions: ClientOptions = {
     apiVersion: pluginOptions?.apiVersion,
     baseUrl: pluginOptions?.baseUrl,
@@ -482,15 +476,15 @@ export function defineModel(
     );
   }
 
-  return ai.defineModel(
+  return model(
     {
-      apiVersion: 'v2',
       name: ref.name,
       ...ref.info,
       configSchema: ref.configSchema,
       use: middleware,
     },
-    async (request, { streamingRequested, sendChunk, abortSignal }) => {
+    async (request, options) => {
+      const { streamingRequested, sendChunk, abortSignal } = options || {};
       const clientOpt = { ...clientOptions, signal: abortSignal };
 
       // Make a copy so that modifying the request will not produce side-effects
@@ -660,7 +654,6 @@ export function defineModel(
       // API params as for input.
       return pluginOptions?.experimental_debugTraces
         ? await runInNewSpan(
-            ai.registry,
             {
               metadata: {
                 name: streamingRequested ? 'sendMessageStream' : 'sendMessage',

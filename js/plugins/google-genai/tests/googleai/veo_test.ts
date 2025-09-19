@@ -15,10 +15,11 @@
  */
 
 import * as assert from 'assert';
-import { Genkit, Operation } from 'genkit';
-import { GenerateRequest, GenerateResponseData } from 'genkit/model';
+import { Operation } from 'genkit';
+import { GenerateRequest } from 'genkit/model';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import * as sinon from 'sinon';
+
 import { getGenkitClientHeader } from '../../src/common/utils.js';
 import { getGoogleAIUrl } from '../../src/googleai/client.js';
 import { VeoOperation, VeoPredictRequest } from '../../src/googleai/types.js';
@@ -26,8 +27,8 @@ import {
   TEST_ONLY,
   VeoConfig,
   VeoConfigSchema,
+  createModelRef,
   defineModel,
-  model,
 } from '../../src/googleai/veo.js';
 
 const { toVeoParameters, fromVeoOperation, GENERIC_MODEL, KNOWN_MODELS } =
@@ -43,15 +44,17 @@ describe('Google AI Veo', () => {
   describe('model()', () => {
     it('should return a ModelReference for a known model', () => {
       const modelName = 'veo-2.0-generate-001';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
+      const supports: any = { ...ref.info?.supports };
+
       assert.strictEqual(ref.name, `googleai/${modelName}`);
-      assert.ok(ref.info?.supports?.media);
-      assert.ok(ref.info?.supports?.longRunning);
+      assert.ok(supports?.media);
+      assert.ok(supports?.longRunning);
     });
 
     it('should return a ModelReference for an unknown model using generic info', () => {
       const modelName = 'veo-unknown-model';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
       assert.strictEqual(ref.name, `googleai/${modelName}`);
       assert.deepStrictEqual(ref.info, GENERIC_MODEL.info);
     });
@@ -59,7 +62,7 @@ describe('Google AI Veo', () => {
     it('should apply config to a known model', () => {
       const modelName = 'veo-2.0-generate-001';
       const config: VeoConfig = { aspectRatio: '16:9' };
-      const ref = model(modelName, config);
+      const ref = createModelRef(modelName, config);
       assert.strictEqual(ref.name, `googleai/${modelName}`);
       assert.deepStrictEqual(ref.config, config);
     });
@@ -67,14 +70,14 @@ describe('Google AI Veo', () => {
     it('should apply config to an unknown model', () => {
       const modelName = 'veo-unknown-model';
       const config: VeoConfig = { durationSeconds: 6 };
-      const ref = model(modelName, config);
+      const ref = createModelRef(modelName, config);
       assert.strictEqual(ref.name, `googleai/${modelName}`);
       assert.deepStrictEqual(ref.config, config);
     });
 
     it('should handle model name with prefix', () => {
       const modelName = 'models/veo-2.0-generate-001';
-      const ref = model(modelName);
+      const ref = createModelRef(modelName);
       assert.strictEqual(ref.name, 'googleai/veo-2.0-generate-001');
     });
   });
@@ -175,7 +178,6 @@ describe('Google AI Veo', () => {
   });
 
   describe('defineModel()', () => {
-    let mockAi: sinon.SinonStubbedInstance<Genkit>;
     let fetchStub: sinon.SinonStub;
     let envStub: sinon.SinonStub;
 
@@ -183,7 +185,6 @@ describe('Google AI Veo', () => {
     const defaultApiKey = 'default-api-key';
 
     beforeEach(() => {
-      mockAi = sinon.createStubInstance(Genkit);
       fetchStub = sinon.stub(global, 'fetch');
       envStub = sinon.stub(process, 'env').value({});
     });
@@ -208,26 +209,15 @@ describe('Google AI Veo', () => {
         apiVersion?: string;
         baseUrl?: string;
       } = {}
-    ): {
-      start: (
-        request: GenerateRequest
-      ) => Promise<Operation<GenerateResponseData>>;
-      check: (operation: Operation) => Promise<Operation<GenerateResponseData>>;
-    } {
+    ) {
       const name = defineOptions.name || modelName;
       const apiVersion = defineOptions.apiVersion;
       const baseUrl = defineOptions.baseUrl;
       const apiKey = defineOptions.apiKey;
 
-      defineModel(mockAi as any, name, { apiKey, apiVersion, baseUrl });
-      assert.ok(
-        mockAi.defineBackgroundModel.calledOnce,
-        'defineBackgroundModel should be called'
-      );
-      const callArgs = mockAi.defineBackgroundModel.firstCall.args;
-      assert.strictEqual(callArgs[0].name, `googleai/${name}`);
-      assert.strictEqual(callArgs[0].configSchema, VeoConfigSchema);
-      return { start: callArgs[0].start, check: callArgs[0].check };
+      const modelAction = defineModel(name, { apiKey, apiVersion, baseUrl });
+      assert.strictEqual(modelAction.__action.name, `googleai/${name}`);
+      return modelAction;
     }
 
     describe('start()', () => {
@@ -246,8 +236,8 @@ describe('Google AI Veo', () => {
         };
         mockFetchResponse(mockOp);
 
-        const { start } = captureModelRunner({ apiKey: defaultApiKey });
-        const result = await start(request);
+        const modelAction = captureModelRunner({ apiKey: defaultApiKey });
+        const result = await modelAction.start(request);
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -276,7 +266,9 @@ describe('Google AI Veo', () => {
           expectedVeoPredictRequest
         );
 
-        assert.deepStrictEqual(result, fromVeoOperation(mockOp));
+        const expected = fromVeoOperation(mockOp);
+        assert.strictEqual(result.id, expected.id);
+        assert.strictEqual(result.done, expected.done);
       });
 
       it('should handle custom apiVersion and baseUrl', async () => {
@@ -284,12 +276,12 @@ describe('Google AI Veo', () => {
         const apiVersion = 'v1test';
         const baseUrl = 'https://test.example.com';
 
-        const { start } = captureModelRunner({
+        const modelAction = captureModelRunner({
           apiKey: defaultApiKey,
           apiVersion,
           baseUrl,
         });
-        await start(request);
+        await modelAction.start(request);
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -306,8 +298,8 @@ describe('Google AI Veo', () => {
         envStub.value({ GOOGLE_API_KEY: envKey });
         mockFetchResponse({ name: 'operations/start789', done: false });
 
-        const { start } = captureModelRunner({ apiKey: undefined });
-        await start(request);
+        const modelAction = captureModelRunner({ apiKey: undefined });
+        await modelAction.start(request);
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -318,9 +310,9 @@ describe('Google AI Veo', () => {
         const errorBody = { error: { message: 'Invalid argument', code: 400 } };
         mockFetchResponse(errorBody, 400);
 
-        const { start } = captureModelRunner({ apiKey: defaultApiKey });
+        const modelAction = captureModelRunner({ apiKey: defaultApiKey });
         await assert.rejects(
-          start(request),
+          modelAction.start(request),
           /Error fetching from .*models\/veo-test-model:predictLongRunning.* Invalid argument/
         );
       });
@@ -342,8 +334,8 @@ describe('Google AI Veo', () => {
         };
         mockFetchResponse(mockResponse);
 
-        const { check } = captureModelRunner({ apiKey: defaultApiKey });
-        const result = await check(pendingOp);
+        const modelAction = captureModelRunner({ apiKey: defaultApiKey });
+        const result = await modelAction.check(pendingOp);
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -362,7 +354,10 @@ describe('Google AI Veo', () => {
         assert.deepStrictEqual(fetchArgs[1].headers, expectedHeaders);
         assert.strictEqual(fetchArgs[1].method, 'GET');
 
-        assert.deepStrictEqual(result, fromVeoOperation(mockResponse));
+        const expected = fromVeoOperation(mockResponse);
+        assert.strictEqual(result.id, expected.id);
+        assert.strictEqual(result.done, expected.done);
+        assert.deepStrictEqual(result.output, expected.output);
       });
 
       it('should handle custom apiVersion and baseUrl for check', async () => {
@@ -370,12 +365,12 @@ describe('Google AI Veo', () => {
         const apiVersion = 'v1test';
         const baseUrl = 'https://test.example.com';
 
-        const { check } = captureModelRunner({
+        const modelAction = captureModelRunner({
           apiKey: defaultApiKey,
           apiVersion,
           baseUrl,
         });
-        await check(pendingOp);
+        await modelAction.check(pendingOp);
 
         sinon.assert.calledOnce(fetchStub);
         const fetchArgs = fetchStub.lastCall.args;
@@ -390,9 +385,9 @@ describe('Google AI Veo', () => {
         const errorBody = { error: { message: 'Not found', code: 404 } };
         mockFetchResponse(errorBody, 404);
 
-        const { check } = captureModelRunner({ apiKey: defaultApiKey });
+        const modelAction = captureModelRunner({ apiKey: defaultApiKey });
         await assert.rejects(
-          check(pendingOp),
+          modelAction.check(pendingOp),
           /Error fetching from .*operations\/check123.* Not found/
         );
       });

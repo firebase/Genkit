@@ -16,13 +16,13 @@
 
 import {
   ActionMetadata,
-  Genkit,
   modelActionMetadata,
   modelRef,
   ModelReference,
   z,
 } from 'genkit';
 import { ModelAction, ModelInfo } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import { lyriaPredict } from './client.js';
 import { fromLyriaResponse, toLyriaPredictRequest } from './converters.js';
 import { ClientOptions, Model, VertexPluginOptions } from './types.js';
@@ -86,7 +86,7 @@ export function isLyriaModelName(value?: string): value is LyriaModelName {
   return !!value?.startsWith('lyria-');
 }
 
-export function model(
+export function createModelRef(
   version: string,
   config: LyriaConfig = {}
 ): ModelReference<ConfigSchemaType> {
@@ -103,7 +103,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
   return models
     .filter((m: Model) => isLyriaModelName(m.name))
     .map((m: Model) => {
-      const ref = model(m.name);
+      const ref = createModelRef(m.name);
       return modelActionMetadata({
         name: ref.name,
         info: ref.info,
@@ -113,26 +113,23 @@ export function listActions(models: Model[]): ActionMetadata[] {
 }
 
 export function defineKnownModels(
-  ai: Genkit,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
-) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, clientOptions, pluginOptions);
-  }
+): ModelAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) =>
+    defineModel(name, clientOptions, pluginOptions)
+  );
 }
 
 export function defineModel(
-  ai: Genkit,
   name: string,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
 ): ModelAction {
-  const ref = model(name);
+  const ref = createModelRef(name);
 
-  return ai.defineModel(
+  return model(
     {
-      apiVersion: 'v2',
       name: ref.name,
       ...ref.info,
       configSchema: ref.configSchema,

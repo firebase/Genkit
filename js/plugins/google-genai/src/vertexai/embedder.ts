@@ -14,13 +14,19 @@
  * limitations under the License.
  */
 
-import { z, type Document, type Genkit } from 'genkit';
+import {
+  ActionMetadata,
+  embedderActionMetadata,
+  z,
+  type Document,
+} from 'genkit';
 import {
   EmbedderInfo,
   embedderRef,
   type EmbedderAction,
   type EmbedderReference,
 } from 'genkit/embedder';
+import { embedder } from 'genkit/plugin';
 import { embedContent } from './client.js';
 import {
   ClientOptions,
@@ -28,6 +34,7 @@ import {
   EmbeddingInstance,
   EmbeddingPrediction,
   EmbeddingResult,
+  Model,
   TaskTypeSchema,
   VertexPluginOptions,
   isMultimodalEmbeddingPrediction,
@@ -107,8 +114,15 @@ export const KNOWN_MODELS = {
     supports: { input: ['text'] },
   }),
 } as const;
+export type KnownModels = keyof typeof KNOWN_MODELS;
+export type EmbedderModelName = `embedder=${string}`;
+export function isEmbedderModelName(
+  value?: string
+): value is EmbedderModelName {
+  return !!value?.includes('embedding');
+}
 
-export function model(
+export function createModelRef(
   version: string,
   config: EmbeddingConfig = {}
 ): EmbedderReference<ConfigSchemaType> {
@@ -145,36 +159,51 @@ export function model(
   });
 }
 
+// Takes a full list of models, filters for current Veo models only
+// and returns a modelActionMetadata for each.
+export function listActions(models: Model[]): ActionMetadata[] {
+  return models
+    .filter((m: Model) => isEmbedderModelName(m.name))
+    .map((m: Model) => {
+      const ref = createModelRef(m.name);
+      return embedderActionMetadata({
+        name: ref.name,
+        info: ref.info,
+        configSchema: ref.configSchema,
+      });
+    });
+}
+
 export function defineKnownModels(
-  ai: Genkit,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
-) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineEmbedder(ai, name, clientOptions, pluginOptions);
-  }
+): EmbedderAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) =>
+    defineEmbedder(name, clientOptions, pluginOptions)
+  );
 }
 
 export function defineEmbedder(
-  ai: Genkit,
   name: string,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
 ): EmbedderAction<any> {
-  const ref = model(name);
+  const ref = createModelRef(name);
 
-  return ai.defineEmbedder(
+  return embedder(
     {
       name: ref.name,
       configSchema: ref.configSchema,
       info: ref.info!,
     },
-    async (input, options?: EmbeddingConfig) => {
+    async (request, options) => {
       const embedContentRequest: EmbedContentRequest = {
-        instances: input.map((doc: Document) =>
-          toEmbeddingInstance(ref, doc, options)
+        instances: request.input.map((doc: Document) =>
+          toEmbeddingInstance(ref, doc, request.options)
         ),
-        parameters: { outputDimensionality: options?.outputDimensionality },
+        parameters: {
+          outputDimensionality: request.options?.outputDimensionality,
+        },
       };
 
       const response = await embedContent(

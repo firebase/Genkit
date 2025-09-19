@@ -20,7 +20,6 @@ import {
   Operation,
   modelActionMetadata,
   z,
-  type Genkit,
 } from 'genkit';
 import {
   BackgroundModelAction,
@@ -29,6 +28,8 @@ import {
   type ModelInfo,
   type ModelReference,
 } from 'genkit/model';
+import { backgroundModel } from 'genkit/plugin';
+
 import { veoCheckOperation, veoPredict } from './client.js';
 import {
   ClientOptions,
@@ -120,7 +121,7 @@ export function isVeoModelName(value?: string): value is VeoModelName {
   return !!value?.startsWith('veo-');
 }
 
-export function model(
+export function createModelRef(
   version: string,
   config: VeoConfig = {}
 ): ModelReference<ConfigSchemaType> {
@@ -146,7 +147,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const ref = model(m.name);
+        const ref = createModelRef(m.name);
         return modelActionMetadata({
           name: ref.name,
           info: ref.info,
@@ -156,27 +157,26 @@ export function listActions(models: Model[]): ActionMetadata[] {
   );
 }
 
-export function defineKnownModels(ai: Genkit, options?: GoogleAIPluginOptions) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, options);
-  }
+export function defineKnownModels(
+  options?: GoogleAIPluginOptions
+): BackgroundModelAction<VeoConfigSchemaType>[] {
+  return Object.keys(KNOWN_MODELS).map((name) => defineModel(name, options));
 }
 
 /**
  * Defines a new GoogleAI Veo model.
  */
 export function defineModel(
-  ai: Genkit,
   name: string,
   pluginOptions?: GoogleAIPluginOptions
 ): BackgroundModelAction<VeoConfigSchemaType> {
-  const ref = model(name);
+  const ref = createModelRef(name);
   const clientOptions: ClientOptions = {
     apiVersion: pluginOptions?.apiVersion,
     baseUrl: pluginOptions?.baseUrl,
   };
 
-  return ai.defineBackgroundModel({
+  return backgroundModel({
     name: ref.name,
     ...ref.info,
     configSchema: ref.configSchema,

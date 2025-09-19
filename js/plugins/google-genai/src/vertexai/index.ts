@@ -20,10 +20,8 @@
  * @module /
  */
 
-import { EmbedderReference, Genkit, ModelReference, z } from 'genkit';
-import { GenkitPlugin, genkitPlugin } from 'genkit/plugin';
-import { ActionType } from 'genkit/registry';
-import { listModels } from './client.js';
+import { EmbedderReference, ModelReference, z } from 'genkit';
+import { GenkitPluginV2, genkitPluginV2 } from 'genkit/plugin';
 
 import * as embedder from './embedder.js';
 import * as gemini from './gemini.js';
@@ -31,6 +29,8 @@ import * as imagen from './imagen.js';
 import * as lyria from './lyria.js';
 import * as veo from './veo.js';
 
+import { ActionType } from 'genkit/registry';
+import { listModels } from './client.js';
 import { VertexPluginOptions } from './types.js';
 import { getDerivedOptions } from './utils.js';
 
@@ -41,101 +41,85 @@ export { type LyriaConfig } from './lyria.js';
 export { type VertexPluginOptions } from './types.js';
 export { type VeoConfig } from './veo.js';
 
-async function initializer(ai: Genkit, pluginOptions?: VertexPluginOptions) {
-  const clientOptions = await getDerivedOptions(pluginOptions);
-  veo.defineKnownModels(ai, clientOptions, pluginOptions);
-  imagen.defineKnownModels(ai, clientOptions, pluginOptions);
-  lyria.defineKnownModels(ai, clientOptions, pluginOptions);
-  gemini.defineKnownModels(ai, clientOptions, pluginOptions);
-  embedder.defineKnownModels(ai, clientOptions, pluginOptions);
-}
-
-async function resolver(
-  ai: Genkit,
-  actionType: ActionType,
-  actionName: string,
-  pluginOptions?: VertexPluginOptions
-) {
-  const clientOptions = await getDerivedOptions(pluginOptions);
-  switch (actionType) {
-    case 'model':
-      if (lyria.isLyriaModelName(actionName)) {
-        lyria.defineModel(ai, actionName, clientOptions, pluginOptions);
-      } else if (imagen.isImagenModelName(actionName)) {
-        imagen.defineModel(ai, actionName, clientOptions, pluginOptions);
-      } else if (veo.isVeoModelName(actionName)) {
-        // no-op (not gemini)
-      } else {
-        gemini.defineModel(ai, actionName, clientOptions, pluginOptions);
-      }
-      break;
-    case 'background-model':
-      if (veo.isVeoModelName(actionName)) {
-        veo.defineModel(ai, actionName, clientOptions, pluginOptions);
-      }
-      break;
-    case 'embedder':
-      embedder.defineEmbedder(ai, actionName, clientOptions, pluginOptions);
-      break;
-    default:
-    // no-op
-  }
-}
-
-async function listActions(options?: VertexPluginOptions) {
-  try {
-    const clientOptions = await getDerivedOptions(options);
-    const models = await listModels(clientOptions);
-    return [
-      ...gemini.listActions(models),
-      ...imagen.listActions(models),
-      ...lyria.listActions(models),
-      ...veo.listActions(models),
-      // We don't list embedders here
-    ];
-  } catch (e: unknown) {
-    // Errors are already logged in the client code.
-    return [];
-  }
-}
-
 /**
  * Add Google Cloud Vertex AI to Genkit. Includes Gemini and Imagen models and text embedder.
  */
-function vertexAIPlugin(options?: VertexPluginOptions): GenkitPlugin {
-  let listActionsCache;
-  return genkitPlugin(
-    'vertexai',
-    async (ai: Genkit) => await initializer(ai, options),
-    async (ai: Genkit, actionType: ActionType, actionName: string) =>
-      await resolver(ai, actionType, actionName, options),
-    async () => {
-      if (listActionsCache) return listActionsCache;
-      listActionsCache = await listActions(options);
-      return listActionsCache;
-    }
-  );
+function vertexAIPlugin(options?: VertexPluginOptions): GenkitPluginV2 {
+  // Cache for list function - per plugin instance
+  let listCache: any[] | null = null;
+
+  return genkitPluginV2({
+    name: 'vertexai',
+    init: async () => {
+      const clientOptions = await getDerivedOptions(options);
+      return [
+        ...veo.defineKnownModels(clientOptions, options),
+        ...imagen.defineKnownModels(clientOptions, options),
+        ...lyria.defineKnownModels(clientOptions, options),
+        ...gemini.defineKnownModels(clientOptions, options),
+        ...embedder.defineKnownModels(clientOptions, options),
+      ];
+    },
+    resolve: async (actionType: ActionType, name: string) => {
+      const clientOptions = await getDerivedOptions(options);
+      if (actionType === 'model') {
+        return gemini.defineModel(name, clientOptions);
+      } else if (actionType === 'embedder') {
+        return embedder.defineEmbedder(name, clientOptions);
+      } else if (actionType === 'background-model') {
+        return veo.defineModel(name, clientOptions);
+      }
+      return undefined;
+    },
+    list: async () => {
+      // Return cached result if available
+      if (listCache !== null) {
+        return listCache;
+      }
+
+      try {
+        // Allow undefined options for testing, but try to get derived options
+        const clientOptions = await getDerivedOptions(options);
+        const models = await listModels(clientOptions);
+        const result = [
+          ...imagen.listActions(models),
+          ...lyria.listActions(models),
+          ...veo.listActions(models),
+          ...gemini.listActions(models),
+          // Note: embedders are excluded from list() for VertexAI plugin
+        ];
+
+        // Cache the result
+        listCache = result;
+        return result;
+      } catch (error) {
+        // Handle errors gracefully by returning empty array
+        console.warn('VertexAI plugin: Failed to fetch models list:', error);
+        return [];
+      }
+    },
+  });
 }
 
 export type VertexAIPlugin = {
-  (pluginOptions?: VertexPluginOptions): GenkitPlugin;
-  model(
+  (pluginOptions?: VertexPluginOptions): GenkitPluginV2;
+  createModelRef(
     name: gemini.KnownModels | (gemini.GeminiModelName & {}),
     config?: gemini.GeminiConfig
   ): ModelReference<gemini.GeminiConfigSchemaType>;
-  model(
+  createModelRef(
     name: imagen.KnownModels | (imagen.ImagenModelName & {}),
     config?: imagen.ImagenConfig
   ): ModelReference<imagen.ImagenConfigSchemaType>;
-  model(
+  createModelRef(
     name: lyria.KnownModels | (lyria.LyriaModelName & {}),
     config: lyria.LyriaConfig
   ): ModelReference<lyria.LyriaConfigSchemaType>;
-  model(
+  createModelRef(
     name: veo.KnownModels | (veo.VeoModelName & {}),
     config: veo.VeoConfig
   ): ModelReference<veo.VeoConfigSchemaType>;
-  model(name: string, config?: any): ModelReference<z.ZodTypeAny>;
+  createModelRef(name: string, config?: any): ModelReference<z.ZodTypeAny>;
 
   embedder(
     name: string,
@@ -149,27 +133,27 @@ export type VertexAIPlugin = {
  */
 export const vertexAI = vertexAIPlugin as VertexAIPlugin;
 // provide generic implementation for the model function overloads.
-(vertexAI as any).model = (
+(vertexAI as any).createModelRef = (
   name: string,
   config?: any
 ): ModelReference<z.ZodTypeAny> => {
   if (imagen.isImagenModelName(name)) {
-    return imagen.model(name, config);
+    return imagen.createModelRef(name, config);
   }
   if (lyria.isLyriaModelName(name)) {
-    return lyria.model(name, config);
+    return lyria.createModelRef(name, config);
   }
   if (veo.isVeoModelName(name)) {
-    return veo.model(name, config);
+    return veo.createModelRef(name, config);
   }
   // gemini and unknown model families
-  return gemini.model(name, config);
+  return gemini.createModelRef(name, config);
 };
 vertexAI.embedder = (
   name: string,
   config?: embedder.EmbeddingConfig
 ): EmbedderReference<embedder.EmbeddingConfigSchemaType> => {
-  return embedder.model(name, config);
+  return embedder.createModelRef(name, config);
 };
 
 export default vertexAI;

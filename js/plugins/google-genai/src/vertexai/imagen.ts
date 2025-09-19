@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ActionMetadata, Genkit, modelActionMetadata, z } from 'genkit';
+import { ActionMetadata, modelActionMetadata, z } from 'genkit';
 import {
   GenerationCommonConfigSchema,
   ModelAction,
@@ -22,6 +22,7 @@ import {
   ModelReference,
   modelRef,
 } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import { imagenPredict } from './client.js';
 import { fromImagenResponse, toImagenPredictRequest } from './converters.js';
 import { ClientOptions, Model, VertexPluginOptions } from './types.js';
@@ -215,7 +216,7 @@ export function isImagenModelName(value?: string): value is ImagenModelName {
   return !!value?.startsWith('imagen-');
 }
 
-export function model(
+export function createModelRef(
   version: string,
   config: ImagenConfig = {}
 ): ModelReference<typeof ImagenConfigSchema> {
@@ -237,7 +238,7 @@ export function listActions(models: Model[]): ActionMetadata[] {
   return models
     .filter((m: Model) => isImagenModelName(modelName(m.name)))
     .map((m: Model) => {
-      const ref = model(m.name);
+      const ref = createModelRef(m.name);
       return modelActionMetadata({
         name: ref.name,
         info: ref.info,
@@ -247,26 +248,23 @@ export function listActions(models: Model[]): ActionMetadata[] {
 }
 
 export function defineKnownModels(
-  ai: Genkit,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
-) {
-  for (const name of Object.keys(KNOWN_MODELS)) {
-    defineModel(ai, name, clientOptions, pluginOptions);
-  }
+): ModelAction[] {
+  return Object.keys(KNOWN_MODELS).map((name) =>
+    defineModel(name, clientOptions, pluginOptions)
+  );
 }
 
 export function defineModel(
-  ai: Genkit,
   name: string,
   clientOptions: ClientOptions,
   pluginOptions?: VertexPluginOptions
 ): ModelAction {
-  const ref = model(name);
+  const ref = createModelRef(name);
 
-  return ai.defineModel(
+  return model(
     {
-      apiVersion: 'v2',
       name: ref.name,
       ...ref.info,
       configSchema: ref.configSchema,
