@@ -38,7 +38,7 @@ import {
   type ToolConfig,
   type UsageMetadata,
 } from '@google/generative-ai';
-import { GenkitError, z, type Genkit, type JSONSchema } from 'genkit';
+import { GenkitError, z, type JSONSchema } from 'genkit';
 import {
   GenerationCommonConfigDescriptions,
   GenerationCommonConfigSchema,
@@ -57,6 +57,7 @@ import {
   type ToolResponsePart,
 } from 'genkit/model';
 import { downloadRequestMedia } from 'genkit/model/middleware';
+import { model } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import { getApiKeyFromEnvVar, getGenkitClientHeader } from './common';
 import { handleCacheIfNeeded } from './context-caching';
@@ -1118,7 +1119,6 @@ export function cleanSchema(schema: JSONSchema): JSONSchema {
  * Defines a new GoogleAI model.
  */
 export function defineGoogleAIModel({
-  ai,
   name,
   apiKey: apiKeyOption,
   apiVersion,
@@ -1127,7 +1127,6 @@ export function defineGoogleAIModel({
   defaultConfig,
   debugTraces,
 }: {
-  ai: Genkit;
   name: string;
   apiKey?: string | false;
   apiVersion?: string;
@@ -1150,16 +1149,15 @@ export function defineGoogleAIModel({
     }
   }
 
-  const apiModelName = name.startsWith('googleai/')
-    ? name.substring('googleai/'.length)
-    : name;
+  // In v2, plugin internals use UNPREFIXED action names.
+  const actionName = name;
 
-  const model: ModelReference<z.ZodTypeAny> =
-    SUPPORTED_GEMINI_MODELS[apiModelName] ??
+  const modelReference: ModelReference<z.ZodTypeAny> =
+    SUPPORTED_GEMINI_MODELS[actionName] ??
     modelRef({
-      name: `googleai/${apiModelName}`,
+      name: actionName,
       info: {
-        label: `Google AI - ${apiModelName}`,
+        label: `Google AI - ${actionName}`,
         supports: {
           multiturn: true,
           media: true,
@@ -1173,7 +1171,7 @@ export function defineGoogleAIModel({
     });
 
   const middleware: ModelMiddleware[] = [];
-  if (model.info?.supports?.media) {
+  if (modelReference.info?.supports?.media) {
     // the gemini api doesn't support downloading media from http(s)
     middleware.push(
       downloadRequestMedia({
@@ -1199,12 +1197,11 @@ export function defineGoogleAIModel({
     );
   }
 
-  return ai.defineModel(
+  return model(
     {
-      apiVersion: 'v2',
-      name: model.name,
-      ...model.info,
-      configSchema: model.configSchema,
+      name: actionName,
+      ...modelReference.info,
+      configSchema: modelReference.configSchema,
       use: middleware,
     },
     async (request, { streamingRequested, sendChunk, abortSignal }) => {
@@ -1228,7 +1225,7 @@ export function defineGoogleAIModel({
       // systemInstructions to be provided as a separate input. The first
       // message detected with role=system will be used for systemInstructions.
       let systemInstruction: GeminiMessage | undefined = undefined;
-      if (model.info?.supports?.systemRole) {
+      if (modelReference.info?.supports?.systemRole) {
         const systemMessage = messages.find((m) => m.role === 'system');
         if (systemMessage) {
           messages.splice(messages.indexOf(systemMessage), 1);
@@ -1306,7 +1303,10 @@ export function defineGoogleAIModel({
         generationConfig.responseSchema = cleanSchema(request.output.schema);
       }
 
-      const msg = toGeminiMessage(messages[messages.length - 1], model);
+      const msg = toGeminiMessage(
+        messages[messages.length - 1],
+        modelReference
+      );
 
       const fromJSONModeScopedGeminiCandidate = (
         candidate: GeminiCandidate
@@ -1321,12 +1321,12 @@ export function defineGoogleAIModel({
         toolConfig,
         history: messages
           .slice(0, -1)
-          .map((message) => toGeminiMessage(message, model)),
+          .map((message) => toGeminiMessage(message, modelReference)),
         safetySettings: safetySettingsFromConfig,
       } as StartChatParams;
       const modelVersion = (versionFromConfig ||
-        model.version ||
-        apiModelName) as string;
+        modelReference.version ||
+        actionName) as string;
       const cacheConfigDetails = extractCacheConfig(request);
 
       const { chatRequest: updatedChatRequest, cache } =
@@ -1426,11 +1426,10 @@ export function defineGoogleAIModel({
         };
       };
 
-      // If debugTraces is enable, we wrap the actual model call with a span, add raw
-      // API params as for input.
+      // If debugTraces is enabled, we wrap the actual model call with a span, add raw
+      // API params as input.
       return debugTraces
         ? await runInNewSpan(
-            ai.registry,
             {
               metadata: {
                 name: streamingRequested ? 'sendMessageStream' : 'sendMessage',

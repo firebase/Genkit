@@ -23,9 +23,9 @@ import {
   z,
   type EmbedderAction,
   type EmbedderReference,
-  type Genkit,
 } from 'genkit';
 import { embedderRef } from 'genkit/embedder';
+import { embedder } from 'genkit/plugin';
 import { getApiKeyFromEnvVar } from './common.js';
 import type { PluginOptions } from './index.js';
 
@@ -103,7 +103,6 @@ export const SUPPORTED_MODELS = {
 };
 
 export function defineGoogleAIEmbedder(
-  ai: Genkit,
   name: string,
   pluginOptions: PluginOptions
 ): EmbedderAction<any> {
@@ -117,29 +116,29 @@ export function defineGoogleAIEmbedder(
           'For more details see https://genkit.dev/docs/plugins/google-genai'
       );
   }
-  const embedder: EmbedderReference =
-    SUPPORTED_MODELS[name] ??
+  // In v2, plugin internals use UNPREFIXED action names.
+  const actionName = name;
+
+  const embedderReference: EmbedderReference =
+    SUPPORTED_MODELS[actionName] ??
     embedderRef({
-      name: name,
+      name: actionName,
       configSchema: GeminiEmbeddingConfigSchema,
       info: {
         dimensions: 768,
-        label: `Google AI - ${name}`,
+        label: `Google AI - ${actionName}`,
         supports: {
           input: ['text', 'image', 'video'],
         },
       },
     });
-  const apiModelName = embedder.name.startsWith('googleai/')
-    ? embedder.name.substring('googleai/'.length)
-    : embedder.name;
-  return ai.defineEmbedder(
+  return embedder(
     {
-      name: embedder.name,
+      name: actionName,
       configSchema: GeminiEmbeddingConfigSchema,
-      info: embedder.info!,
+      info: embedderReference.info!,
     },
-    async (input, options) => {
+    async ({ input, options }) => {
       if (pluginOptions.apiKey === false && !options?.apiKey) {
         throw new GenkitError({
           status: 'INVALID_ARGUMENT',
@@ -152,9 +151,9 @@ export function defineGoogleAIEmbedder(
       ).getGenerativeModel({
         model:
           options?.version ||
-          embedder.config?.version ||
-          embedder.version ||
-          apiModelName,
+          embedderReference.config?.version ||
+          embedderReference.version ||
+          actionName,
       });
       const embeddings = await Promise.all(
         input.map(async (doc) => {

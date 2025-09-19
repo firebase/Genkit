@@ -20,13 +20,12 @@ import {
   modelActionMetadata,
   type ActionMetadata,
   type EmbedderReference,
-  type Genkit,
   type ModelReference,
   type z,
 } from 'genkit';
 import { logger } from 'genkit/logging';
 import { modelRef } from 'genkit/model';
-import { genkitPlugin, type GenkitPlugin } from 'genkit/plugin';
+import { genkitPluginV2, type GenkitPluginV2 } from 'genkit/plugin';
 import type { ActionType } from 'genkit/registry';
 import { getApiKeyFromEnvVar } from './common.js';
 import {
@@ -112,119 +111,6 @@ export interface PluginOptions {
   experimental_debugTraces?: boolean;
 }
 
-async function initializer(ai: Genkit, options?: PluginOptions) {
-  let apiVersions = ['v1'];
-
-  if (options?.apiVersion) {
-    if (Array.isArray(options?.apiVersion)) {
-      apiVersions = options?.apiVersion;
-    } else {
-      apiVersions = [options?.apiVersion];
-    }
-  }
-
-  if (apiVersions.includes('v1beta')) {
-    Object.keys(SUPPORTED_GEMINI_MODELS).forEach((name) =>
-      defineGoogleAIModel({
-        ai,
-        name,
-        apiKey: options?.apiKey,
-        apiVersion: 'v1beta',
-        baseUrl: options?.baseUrl,
-        debugTraces: options?.experimental_debugTraces,
-      })
-    );
-  }
-  if (apiVersions.includes('v1')) {
-    Object.keys(SUPPORTED_GEMINI_MODELS).forEach((name) =>
-      defineGoogleAIModel({
-        ai,
-        name,
-        apiKey: options?.apiKey,
-        apiVersion: undefined,
-        baseUrl: options?.baseUrl,
-        debugTraces: options?.experimental_debugTraces,
-      })
-    );
-    Object.keys(EMBEDDER_MODELS).forEach((name) =>
-      defineGoogleAIEmbedder(ai, name, { apiKey: options?.apiKey })
-    );
-  }
-
-  if (options?.models) {
-    for (const modelOrRef of options?.models) {
-      const modelName =
-        typeof modelOrRef === 'string'
-          ? modelOrRef
-          : // strip out the `googleai/` prefix
-            modelOrRef.name.split('/')[1];
-      const modelRef =
-        typeof modelOrRef === 'string' ? gemini(modelOrRef) : modelOrRef;
-      defineGoogleAIModel({
-        ai,
-        name: modelName,
-        apiKey: options?.apiKey,
-        baseUrl: options?.baseUrl,
-        info: {
-          ...modelRef.info,
-          label: `Google AI - ${modelName}`,
-        },
-        debugTraces: options?.experimental_debugTraces,
-      });
-    }
-  }
-}
-
-async function resolver(
-  ai: Genkit,
-  actionType: ActionType,
-  actionName: string,
-  options?: PluginOptions
-) {
-  if (actionType === 'embedder') {
-    resolveEmbedder(ai, actionName, options);
-  } else if (actionName.startsWith('veo')) {
-    // we do it this way because the request may come in for
-    // action type 'model' and action name 'veo-...'. That case should
-    // be a noop. It's just the order or model lookup.
-    if (actionType === 'background-model') {
-      defineVeoModel(ai, actionName, options?.apiKey);
-    }
-  } else if (actionType === 'model') {
-    resolveModel(ai, actionName, options);
-  }
-}
-
-function resolveModel(ai: Genkit, actionName: string, options?: PluginOptions) {
-  if (actionName.startsWith('imagen')) {
-    defineImagenModel(ai, actionName, options?.apiKey);
-    return;
-  }
-
-  const modelRef = gemini(actionName);
-  defineGoogleAIModel({
-    ai,
-    name: modelRef.name,
-    apiKey: options?.apiKey,
-    baseUrl: options?.baseUrl,
-    info: {
-      ...modelRef.info,
-      label: `Google AI - ${actionName}`,
-    },
-    debugTraces: options?.experimental_debugTraces,
-  });
-}
-
-function resolveEmbedder(
-  ai: Genkit,
-  actionName: string,
-  options?: PluginOptions
-) {
-  defineGoogleAIEmbedder(ai, `googleai/${actionName}`, {
-    apiKey: options?.apiKey,
-  });
-}
-
 async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
   const apiKey = options?.apiKey || getApiKeyFromEnvVar();
   if (!apiKey) {
@@ -253,10 +139,10 @@ async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const name = m.name.split('/').at(-1)!;
+        const imagenModelName = m.name.split('/').at(-1)!;
 
         return modelActionMetadata({
-          name: `googleai/${name}`,
+          name: imagenModelName,
           info: { ...GENERIC_IMAGEN_INFO },
           configSchema: ImagenConfigSchema,
         });
@@ -271,10 +157,10 @@ async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const name = m.name.split('/').at(-1)!;
+        const veoModelName = m.name.split('/').at(-1)!;
 
         return modelActionMetadata({
-          name: `googleai/${name}`,
+          name: veoModelName,
           info: { ...GENERIC_VEO_INFO },
           configSchema: VeoConfigSchema,
           background: true,
@@ -286,14 +172,13 @@ async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const ref = gemini(
-          m.name.startsWith('models/')
-            ? m.name.substring('models/'.length)
-            : m.name
-        );
+        const modelName = m.name.startsWith('models/')
+          ? m.name.substring('models/'.length)
+          : m.name;
+        const ref = gemini(modelName);
 
         return modelActionMetadata({
-          name: ref.name,
+          name: modelName,
           info: ref.info,
           configSchema: GeminiConfigSchema,
         });
@@ -304,18 +189,16 @@ async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
       // Filter out deprecated
       .filter((m) => !m.description || !m.description.includes('deprecated'))
       .map((m) => {
-        const name =
-          'googleai/' +
-          (m.name.startsWith('models/')
-            ? m.name.substring('models/'.length)
-            : m.name);
+        const embedderName = m.name.startsWith('models/')
+          ? m.name.substring('models/'.length)
+          : m.name;
 
         return embedderActionMetadata({
-          name,
+          name: embedderName,
           configSchema: GeminiEmbeddingConfigSchema,
           info: {
             dimensions: 768,
-            label: `Google Gen AI - ${name}`,
+            label: `Google Gen AI - ${embedderName}`,
             supports: {
               input: ['text'],
             },
@@ -328,23 +211,107 @@ async function listActions(options?: PluginOptions): Promise<ActionMetadata[]> {
 /**
  * Google Gemini Developer API plugin.
  */
-export function googleAIPlugin(options?: PluginOptions): GenkitPlugin {
+export function googleAIPlugin(options?: PluginOptions): GenkitPluginV2 {
   let listActionsCache;
-  return genkitPlugin(
-    'googleai',
-    async (ai: Genkit) => await initializer(ai, options),
-    async (ai: Genkit, actionType: ActionType, actionName: string) =>
-      await resolver(ai, actionType, actionName, options),
-    async () => {
+  return genkitPluginV2({
+    name: 'googleai',
+    async init() {
+      const actions: any[] = [];
+      const apiVersions = Array.isArray(options?.apiVersion)
+        ? options!.apiVersion
+        : options?.apiVersion
+          ? [options.apiVersion]
+          : ['v1'];
+
+      if (apiVersions.includes('v1beta')) {
+        Object.keys(SUPPORTED_GEMINI_MODELS).forEach((name) => {
+          actions.push(
+            defineGoogleAIModel({
+              name: name,
+              apiKey: options?.apiKey,
+              apiVersion: 'v1beta',
+              baseUrl: options?.baseUrl,
+              debugTraces: options?.experimental_debugTraces,
+            })
+          );
+        });
+      }
+
+      if (apiVersions.includes('v1')) {
+        Object.keys(SUPPORTED_GEMINI_MODELS).forEach((name) => {
+          actions.push(
+            defineGoogleAIModel({
+              name: name,
+              apiKey: options?.apiKey,
+              baseUrl: options?.baseUrl,
+              debugTraces: options?.experimental_debugTraces,
+            })
+          );
+        });
+        Object.keys(EMBEDDER_MODELS).forEach((name) => {
+          actions.push(
+            defineGoogleAIEmbedder(name, {
+              apiKey: options?.apiKey,
+            })
+          );
+        });
+      }
+
+      if (options?.models) {
+        for (const modelOrRef of options.models) {
+          const modelName =
+            typeof modelOrRef === 'string'
+              ? modelOrRef
+              : modelOrRef.name.split('/').pop()!;
+          const ref =
+            typeof modelOrRef === 'string' ? gemini(modelOrRef) : modelOrRef;
+          actions.push(
+            defineGoogleAIModel({
+              name: modelName,
+              apiKey: options?.apiKey,
+              baseUrl: options?.baseUrl,
+              info: { ...ref.info, label: `Google AI - ${modelName}` },
+              debugTraces: options?.experimental_debugTraces,
+            })
+          );
+        }
+      }
+      return actions;
+    },
+    async resolve(actionType: ActionType, actionName: string) {
+      // In v2, actionName is already unprefixed
+      if (actionType === 'embedder') {
+        return defineGoogleAIEmbedder(actionName, {
+          apiKey: options?.apiKey,
+        });
+      } else if (actionName.startsWith('veo')) {
+        if (actionType === 'background-model') {
+          return defineVeoModel(actionName, options?.apiKey);
+        }
+      } else if (actionType === 'model') {
+        if (actionName.startsWith('imagen')) {
+          return defineImagenModel(actionName, options?.apiKey);
+        }
+        // Fallback dynamic Gemini model
+        return defineGoogleAIModel({
+          name: actionName,
+          apiKey: options?.apiKey,
+          baseUrl: options?.baseUrl,
+          debugTraces: options?.experimental_debugTraces,
+        });
+      }
+      return undefined;
+    },
+    async list() {
       if (listActionsCache) return listActionsCache;
       listActionsCache = await listActions(options);
       return listActionsCache;
-    }
-  );
+    },
+  });
 }
 
 export type GoogleAIPlugin = {
-  (params?: PluginOptions): GenkitPlugin;
+  (params?: PluginOptions): GenkitPluginV2;
   model(
     name: keyof typeof SUPPORTED_GEMINI_MODELS | (`gemini-${string}` & {}),
     config?: z.infer<typeof GeminiConfigSchema>
@@ -375,20 +342,20 @@ export const googleAI = googleAIPlugin as GoogleAIPlugin;
 ): ModelReference<z.ZodTypeAny> => {
   if (name.startsWith('imagen')) {
     return modelRef({
-      name: `googleai/${name}`,
+      name: name,
       config,
       configSchema: ImagenConfigSchema,
     });
   }
   if (name.startsWith('veo')) {
     return modelRef({
-      name: `googleai/${name}`,
+      name: name,
       config,
       configSchema: VeoConfigSchema,
     });
   }
   return modelRef({
-    name: `googleai/${name}`,
+    name: name,
     config,
     configSchema: GeminiConfigSchema,
   });
@@ -398,7 +365,7 @@ googleAI.embedder = (
   config?: GeminiEmbeddingConfig
 ): EmbedderReference<typeof GeminiEmbeddingConfigSchema> => {
   return embedderRef({
-    name: `googleai/${name}`,
+    name: name,
     config,
     configSchema: GeminiEmbeddingConfigSchema,
   });

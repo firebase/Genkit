@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { GenkitError, MessageData, z, type Genkit } from 'genkit';
+import { GenkitError, MessageData, z } from 'genkit';
 import {
   getBasicUsageStats,
   modelRef,
@@ -23,6 +23,7 @@ import {
   type ModelInfo,
   type ModelReference,
 } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import { getApiKeyFromEnvVar } from './common.js';
 import { predictModel } from './predict.js';
 
@@ -109,7 +110,6 @@ export const GENERIC_IMAGEN_INFO = {
 } as ModelInfo;
 
 export function defineImagenModel(
-  ai: Genkit,
   name: string,
   apiKey?: string | false
 ): ModelAction {
@@ -124,20 +124,21 @@ export function defineImagenModel(
       });
     }
   }
-  const modelName = `googleai/${name}`;
-  const model: ModelReference<z.ZodTypeAny> = modelRef({
-    name: modelName,
+  // In v2, plugin internals use UNPREFIXED action names.
+  const actionName = name;
+  const modelReference: ModelReference<z.ZodTypeAny> = modelRef({
+    name: actionName,
     info: {
       ...GENERIC_IMAGEN_INFO,
-      label: `Google AI - ${name}`,
+      label: `Google AI - ${actionName}`,
     },
     configSchema: ImagenConfigSchema,
   });
 
-  return ai.defineModel(
+  return model(
     {
-      name: modelName,
-      ...model.info,
+      name: actionName,
+      ...modelReference.info,
       configSchema: ImagenConfigSchema,
     },
     async (request) => {
@@ -153,7 +154,7 @@ export function defineImagenModel(
         ImagenInstance,
         ImagenPrediction,
         ImagenParameters
-      >(model.version || name, apiKey as string, 'predict');
+      >(modelReference.version || actionName, apiKey as string, 'predict');
       const response = await predictClient([instance], toParameters(request));
 
       if (!response.predictions || response.predictions.length == 0) {
