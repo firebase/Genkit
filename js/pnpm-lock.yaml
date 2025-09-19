@@ -459,9 +459,6 @@ importers:
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
-      path:
-        specifier: ^0.12.7
-        version: 0.12.7
     devDependencies:
       '@types/node':
         specifier: ^20.11.16

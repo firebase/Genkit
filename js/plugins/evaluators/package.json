@@ -32,7 +32,6 @@
   "dependencies": {
     "compute-cosine-similarity": "^1.1.0",
     "node-fetch": "^3.3.2",
-    "path": "^0.12.7",
     "dotprompt": "^1.1.1",
     "jsonata": "^2.0.6"
   },
