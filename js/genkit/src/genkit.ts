@@ -103,6 +103,7 @@ import {
   GenkitError,
   Operation,
   ReflectionServer,
+  defineDynamicActionProvider,
   defineFlow,
   defineJsonSchema,
   defineSchema,
@@ -115,6 +116,9 @@ import {
   setClientHeader,
   type Action,
   type ActionContext,
+  type DapAction,
+  type DapConfig,
+  type DapFn,
   type FlowConfig,
   type FlowFn,
   type JSONSchema,
@@ -239,6 +243,16 @@ export class Genkit implements HasRegistry {
     fn?: ToolFn<I, O>
   ): ToolAction<I, O> {
     return dynamicTool(config, fn) as ToolAction<I, O>;
+  }
+
+  /**
+   * Defines and registers a dynamic action provider (e.g. mcp host)
+   */
+  defineDynamicActionProvider(
+    config: DapConfig | string,
+    fn: DapFn
+  ): DapAction {
+    return defineDynamicActionProvider(this.registry, config, fn);
   }
 
   /**

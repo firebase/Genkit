@@ -130,7 +130,9 @@ export function parseSchema<T = unknown>(
   options: ProvidedSchema
 ): T {
   const { valid, errors, schema } = validateSchema(data, options);
-  if (!valid) throw new ValidationError({ data, errors: errors!, schema });
+  if (!valid) {
+    throw new ValidationError({ data, errors: errors!, schema });
+  }
   return data as T;
 }
 

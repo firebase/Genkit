@@ -218,7 +218,8 @@ export async function lookupToolByName(
   const tool =
     (await registry.lookupAction(name)) ||
     (await registry.lookupAction(`/tool/${name}`)) ||
-    (await registry.lookupAction(`/prompt/${name}`));
+    (await registry.lookupAction(`/prompt/${name}`)) ||
+    (await registry.lookupAction(`/dynamic-action-provider/${name}`));
   if (!tool) {
     throw new Error(`Tool ${name} not found`);
   }
