@@ -64,8 +64,11 @@ func TestGenerator_Complete(t *testing.T) {
 			},
 		},
 	}
+	req := &ai.ModelRequest{
+		Messages: messages,
+	}
 
-	resp, err := g.WithMessages(messages).Generate(context.Background(), nil)
+	resp, err := g.WithMessages(messages).Generate(context.Background(), req, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,7 +82,6 @@ func TestGenerator_Complete(t *testing.T) {
 
 func TestGenerator_Stream(t *testing.T) {
 	g := setupTestClient(t)
-
 	messages := []*ai.Message{
 		{
 			Role: ai.RoleUser,
@@ -87,6 +89,9 @@ func TestGenerator_Stream(t *testing.T) {
 				ai.NewTextPart("Count from 1 to 3"),
 			},
 		},
+	}
+	req := &ai.ModelRequest{
+		Messages: messages,
 	}
 
 	var chunks []string
@@ -97,7 +102,7 @@ func TestGenerator_Stream(t *testing.T) {
 		return nil
 	}
 
-	_, err := g.WithMessages(messages).Generate(context.Background(), handleChunk)
+	_, err := g.WithMessages(messages).Generate(context.Background(), req, handleChunk)
 	if err != nil {
 		t.Error(err)
 	}
@@ -229,11 +234,14 @@ func TestWithConfig(t *testing.T) {
 			},
 		},
 	}
+	req := &ai.ModelRequest{
+		Messages: messages,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			generator := setupTestClient(t)
-			result, err := generator.WithMessages(messages).WithConfig(tt.config).Generate(context.Background(), nil)
+			result, err := generator.WithMessages(messages).WithConfig(tt.config).Generate(context.Background(), req, nil)
 
 			if tt.err != nil {
 				assert.Error(t, err)
