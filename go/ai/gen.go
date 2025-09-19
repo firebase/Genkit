@@ -229,6 +229,7 @@ type ModelSupports struct {
 	SystemRole  bool               `json:"systemRole,omitempty"`
 	ToolChoice  bool               `json:"toolChoice,omitempty"`
 	Tools       bool               `json:"tools,omitempty"`
+	LongRunning bool               `json:"longRunning,omitempty"`
 }
 
 type ConstrainedSupport string
@@ -259,6 +260,8 @@ type ModelResponse struct {
 	// LatencyMs is the time the request took in milliseconds.
 	LatencyMs float64  `json:"latencyMs,omitempty"`
 	Message   *Message `json:"message,omitempty"`
+	// Operation holds the background operation details for long-running operations.
+	Operation map[string]any `json:"operation,omitempty"`
 	// Request is the [ModelRequest] struct used to trigger this response.
 	Request *ModelRequest `json:"request,omitempty"`
 	// Usage describes how many resources were used by this generation request.

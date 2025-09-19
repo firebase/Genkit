@@ -141,6 +141,9 @@ func newModel(client *genai.Client, name string, opts ai.ModelOptions) ai.Model 
 	config = &genai.GenerateContentConfig{}
 	if strings.Contains(name, "imagen") {
 		config = &genai.GenerateImagesConfig{}
+	} else if vi, fnd := supportedVideoModels[name]; fnd {
+		config = &genai.GenerateVideosConfig{}
+		opts = vi
 	}
 	meta := &ai.ModelOptions{
 		Label:        opts.Label,

@@ -156,6 +156,7 @@ func NewModel(name string, opts *ModelOptions, fn ModelFunc) Model {
 				"constrained": opts.Supports.Constrained,
 				"output":      opts.Supports.Output,
 				"contentType": opts.Supports.ContentType,
+				"longRunning": opts.Supports.LongRunning,
 			},
 			"versions":      opts.Versions,
 			"stage":         opts.Stage,
@@ -215,10 +216,12 @@ func GenerateWithRequest(ctx context.Context, r api.Registry, opts *GenerateActi
 	}
 
 	m := LookupModel(r, opts.Model)
+
 	if m == nil {
 		return nil, core.NewError(core.NOT_FOUND, "ai.GenerateWithRequest: model %q not found", opts.Model)
 	}
 
+	bgAction := LookupBackgroundModel(r, opts.Model)
 	resumeOutput, err := handleResumeOption(ctx, r, opts)
 	if err != nil {
 		return nil, err
@@ -314,7 +317,43 @@ func GenerateWithRequest(ctx context.Context, r api.Registry, opts *GenerateActi
 		Output:     &outputCfg,
 	}
 
-	fn := core.ChainMiddleware(mw...)(m.Generate)
+	var fn ModelFunc
+	if bgAction != nil {
+		// Create a wrapper function that calls the background model but returns a ModelResponse with operation
+		fn = func(ctx context.Context, req *ModelRequest, cb ModelStreamCallback) (*ModelResponse, error) {
+			op, err := bgAction.StartOperation(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+
+			// Return response with operation
+			operationMap := map[string]any{
+				"action": op.Action,
+				"id":     op.ID,
+				"done":   op.Done,
+			}
+			if op.Output != nil {
+				operationMap["output"] = op.Output
+			}
+			if op.Error != nil {
+				operationMap["error"] = map[string]any{
+					"message": op.Error.Error(),
+				}
+			}
+			if op.Metadata != nil {
+				operationMap["metadata"] = op.Metadata
+			}
+
+			return &ModelResponse{
+				Operation: operationMap,
+				Request:   req,
+			}, nil
+		}
+	} else {
+		fn = m.Generate
+	}
+
+	fn = core.ChainMiddleware(mw...)(fn)
 
 	// Inline recursive helper function that captures variables from parent scope.
 	var generate func(context.Context, *ModelRequest, int) (*ModelResponse, error)
@@ -330,6 +369,11 @@ func GenerateWithRequest(ctx context.Context, r api.Registry, opts *GenerateActi
 			resp, err := fn(ctx, req, cb)
 			if err != nil {
 				return nil, err
+			}
+
+			// If this is a long-running operation response, return it immediately without further processing
+			if resp.Operation != nil {
+				return resp, nil
 			}
 
 			if formatHandler != nil {

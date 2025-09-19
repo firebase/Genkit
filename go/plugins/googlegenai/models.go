@@ -48,6 +48,7 @@ const (
 	textembeddinggeckomultilingual001 = "textembedding-gecko-multilingual@001"
 	textmultilingualembedding002      = "text-multilingual-embedding-002"
 	multimodalembedding               = "multimodalembedding"
+	veo20Generate001                  = "veo-2.0-generate-001"
 )
 
 var (
@@ -73,6 +74,8 @@ var (
 		imagen3Generate001,
 		imagen3Generate002,
 		imagen3FastGenerate001,
+
+		veo20Generate001,
 	}
 
 	googleAIModels = []string{
@@ -94,6 +97,8 @@ var (
 		gemini25ProPreview0506,
 
 		imagen3Generate002,
+
+		veo20Generate001,
 	}
 
 	supportedGeminiModels = map[string]ai.ModelOptions{
@@ -237,6 +242,22 @@ var (
 		},
 	}
 
+	supportedVideoModels = map[string]ai.ModelOptions{
+		veo20Generate001: {
+			Label:    "Google AI - Veo 2.0 Generate 001",
+			Versions: []string{},
+			Supports: &ai.ModelSupports{
+				Media:       true,
+				Multiturn:   false,
+				Tools:       false,
+				SystemRole:  false,
+				Output:      []string{"media"},
+				LongRunning: true,
+			},
+			Stage: ai.ModelStageStable,
+		},
+	}
+
 	googleAIEmbedderConfig = map[string]ai.EmbedderOptions{
 		textembedding004: {
 			Dimensions: 768,
@@ -324,6 +345,8 @@ func listModels(provider string) (map[string]ai.ModelOptions, error) {
 		var ok bool
 		if strings.HasPrefix(n, "image") {
 			m, ok = supportedImagenModels[n]
+		} else if strings.HasPrefix(n, "veo") {
+			m, ok = supportedVideoModels[n]
 		} else {
 			m, ok = supportedGeminiModels[n]
 		}
@@ -343,11 +366,11 @@ func listModels(provider string) (map[string]ai.ModelOptions, error) {
 }
 
 // genaiModels collects all the available models in go-genai SDK
-// TODO: add veo models
 type genaiModels struct {
 	gemini    []string
 	imagen    []string
 	embedders []string
+	veo       []string
 }
 
 // listGenaiModels returns a list of supported models and embedders from the
