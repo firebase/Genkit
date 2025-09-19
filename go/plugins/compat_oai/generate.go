@@ -158,7 +158,7 @@ func (g *ModelGenerator) WithConfig(config any) *ModelGenerator {
 		openaiConfig = *cfg
 	case map[string]any:
 		if err := mapToStruct(cfg, &openaiConfig); err != nil {
-			g.err = fmt.Errorf("failed to convert config to OpenAIConfig: %w", err)
+			g.err = fmt.Errorf("failed to convert config to openai.ChatCompletionNewParams: %w", err)
 			return g
 		}
 	default:
