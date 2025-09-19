@@ -19,7 +19,7 @@
     "@genkit-ai/googleai": "workspace:*",
     "@genkit-ai/next": "workspace:*",
     "genkit": "workspace:*",
-    "next": "^15.2.4",
+    "next": "^15.4.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
