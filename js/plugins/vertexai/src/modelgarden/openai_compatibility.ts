@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-import { Message, z, type Genkit, type StreamingCallback } from 'genkit';
+import { Message, z } from 'genkit';
 import {
   GenerationCommonConfigSchema,
   type CandidateData,
   type GenerateRequest,
-  type GenerateResponseChunkData,
   type GenerateResponseData,
   type MessageData,
   type ModelAction,
@@ -29,6 +28,7 @@ import {
   type ToolDefinition,
   type ToolRequestPart,
 } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import type OpenAI from 'openai';
 import type {
   ChatCompletion,
@@ -364,27 +364,26 @@ export function toRequestBody(
 }
 
 export function openaiCompatibleModel<C extends typeof OpenAIConfigSchema>(
-  ai: Genkit,
-  model: ModelReference<any>,
+  modelRef: ModelReference<any>,
   clientFactory: (request: GenerateRequest<C>) => Promise<OpenAI>
 ): ModelAction<C> {
-  const modelId = model.name;
-  if (!model) throw new Error(`Unsupported model: ${name}`);
+  const modelId = modelRef.name;
+  if (!modelRef) throw new Error(`Unsupported model: ${modelId}`);
 
-  return ai.defineModel(
+  return model(
     {
       name: modelId,
-      ...model.info,
-      configSchema: model.configSchema,
+      ...modelRef.info,
+      configSchema: modelRef.configSchema,
     },
     async (
       request: GenerateRequest<C>,
-      sendChunk?: StreamingCallback<GenerateResponseChunkData>
+      options
     ): Promise<GenerateResponseData> => {
       let response: ChatCompletion;
       const client = await clientFactory(request);
-      const body = toRequestBody(model, request);
-      if (sendChunk) {
+      const body = toRequestBody(modelRef, request);
+      if (options.sendChunk) {
         const stream = client.beta.chat.completions.stream({
           ...body,
           stream: true,
@@ -392,7 +391,7 @@ export function openaiCompatibleModel<C extends typeof OpenAIConfigSchema>(
         for await (const chunk of stream) {
           chunk.choices?.forEach((chunk) => {
             const c = fromOpenAiChunkChoice(chunk);
-            sendChunk({
+            options.sendChunk({
               index: c.index,
               content: c.message.content,
             });

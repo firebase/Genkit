@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { type Action, type Genkit, type z } from 'genkit';
+import { type Action, type z } from 'genkit';
 import type { BaseEvalDataPoint, Score } from 'genkit/evaluator';
+import { evaluator } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import type { GoogleAuth } from 'google-auth-library';
 import { getGenkitClientHeader } from '../common/index.js';
@@ -29,7 +30,6 @@ export class EvaluatorFactory {
   ) {}
 
   create<ResponseType extends z.ZodTypeAny>(
-    ai: Genkit,
     config: {
       metric: VertexAIEvaluationMetricType;
       displayName: string;
@@ -39,7 +39,7 @@ export class EvaluatorFactory {
     toRequest: (datapoint: BaseEvalDataPoint) => any,
     responseHandler: (response: z.infer<ResponseType>) => Score
   ): Action {
-    return ai.defineEvaluator(
+    return evaluator(
       {
         name: `vertexai/${config.metric.toLocaleLowerCase()}`,
         displayName: config.displayName,
@@ -48,7 +48,6 @@ export class EvaluatorFactory {
       async (datapoint: BaseEvalDataPoint) => {
         const responseSchema = config.responseSchema;
         const response = await this.evaluateInstances(
-          ai,
           toRequest(datapoint),
           responseSchema
         );
@@ -62,13 +61,11 @@ export class EvaluatorFactory {
   }
 
   async evaluateInstances<ResponseType extends z.ZodTypeAny>(
-    ai: Genkit,
     partialRequest: any,
     responseSchema: ResponseType
   ): Promise<z.infer<ResponseType>> {
     const locationName = `projects/${this.projectId}/locations/${this.location}`;
     return await runInNewSpan(
-      ai,
       {
         metadata: {
           name: 'EvaluationService#evaluateInstances',

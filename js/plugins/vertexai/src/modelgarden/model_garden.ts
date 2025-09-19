@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { z, type Genkit, type ModelReference } from 'genkit';
+import { z, type ModelReference } from 'genkit';
 import { modelRef, type GenerateRequest, type ModelAction } from 'genkit/model';
 import type { GoogleAuth } from 'google-auth-library';
 import OpenAI from 'openai';
@@ -92,15 +92,14 @@ export const SUPPORTED_OPENAI_FORMAT_MODELS = {
 };
 
 export function modelGardenOpenaiCompatibleModel(
-  ai: Genkit,
   name: string,
   projectId: string,
   location: string,
   googleAuth: GoogleAuth,
   baseUrlTemplate: string | undefined
 ): ModelAction<typeof ModelGardenModelConfigSchema> {
-  const model = SUPPORTED_OPENAI_FORMAT_MODELS[name];
-  if (!model) throw new Error(`Unsupported model: ${name}`);
+  const modelRef = SUPPORTED_OPENAI_FORMAT_MODELS[name];
+  if (!modelRef) throw new Error(`Unsupported model: ${name}`);
   if (!baseUrlTemplate) {
     baseUrlTemplate =
       'https://{location}-aiplatform.googleapis.com/v1beta1/projects/{projectId}/locations/{location}/endpoints/openapi';
@@ -120,5 +119,5 @@ export function modelGardenOpenaiCompatibleModel(
       },
     });
   };
-  return openaiCompatibleModel(ai, model, clientFactory);
+  return openaiCompatibleModel(modelRef, clientFactory);
 }

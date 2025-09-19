@@ -33,7 +33,6 @@ import {
   GenerationCommonConfigSchema,
   z,
   type GenerateRequest,
-  type Genkit,
   type MessageData,
   type ModelReference,
   type ModelResponseData,
@@ -46,6 +45,7 @@ import {
   modelRef,
   type ModelAction,
 } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import { getGenkitClientHeader } from '../common/index.js';
 
 /**
@@ -330,33 +330,32 @@ export function fromMistralResponse(
 }
 
 export function mistralModel(
-  ai: Genkit,
   modelName: string,
   projectId: string,
   region: string
 ): ModelAction {
   const getClient = createClientFactory(projectId);
 
-  const model = SUPPORTED_MISTRAL_MODELS[modelName];
-  if (!model) {
+  const modelRef = SUPPORTED_MISTRAL_MODELS[modelName];
+  if (!modelRef) {
     throw new Error(`Unsupported Mistral model name ${modelName}`);
   }
 
-  return ai.defineModel(
+  return model(
     {
-      name: model.name,
-      label: model.info?.label,
+      name: modelRef.name,
+      label: modelRef.info?.label,
       configSchema: MistralConfigSchema,
-      supports: model.info?.supports,
-      versions: model.info?.versions,
+      supports: modelRef.info?.supports,
+      versions: modelRef.info?.versions,
     },
-    async (input, sendChunk) => {
+    async (input, options) => {
       const client = getClient(input.config?.location || region);
 
       const versionedModel =
-        input.config?.version ?? model.info?.versions?.[0] ?? model.name;
+        input.config?.version ?? modelRef.info?.versions?.[0] ?? modelRef.name;
 
-      if (!sendChunk) {
+      if (!options) {
         const mistralRequest = toMistralRequest(versionedModel, input);
 
         const response = await client.chat.complete(mistralRequest, {
@@ -381,7 +380,7 @@ export function mistralModel(
         for await (const event of stream) {
           const parts = fromMistralCompletionChunk(event.data);
           if (parts.length > 0) {
-            sendChunk({
+            options.sendChunk({
               content: parts,
             });
           }

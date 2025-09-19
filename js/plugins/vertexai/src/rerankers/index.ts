@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import type { Genkit } from 'genkit';
-import { genkitPlugin, type GenkitPlugin } from 'genkit/plugin';
+import { genkitPluginV2, type GenkitPluginV2 } from 'genkit/plugin';
 import type { CommonPluginOptions } from '../common/types.js';
 import type { RerankerOptions } from './types.js';
 
@@ -28,17 +27,21 @@ export interface PluginOptions extends CommonPluginOptions, RerankerOptions {}
 /**
  * Add Google Cloud Vertex AI Rerankers API to Genkit.
  */
-export function vertexAIRerankers(options: PluginOptions): GenkitPlugin {
-  return genkitPlugin('vertexAIRerankers', async (ai: Genkit) => {
-    const { projectId, location, authClient } = await getDerivedParams(options);
+export function vertexAIRerankers(options: PluginOptions): GenkitPluginV2 {
+  return genkitPluginV2({
+    name: 'vertexAIRerankers',
+    init: async () => {
+      const { projectId, location, authClient } =
+        await getDerivedParams(options);
 
-    await vertexAiRerankers(ai, {
-      projectId,
-      location,
-      authClient,
-      rerankOptions: options.rerankers.map((o) =>
-        typeof o === 'string' ? { model: o } : o
-      ),
-    });
+      return vertexAiRerankers({
+        projectId,
+        location,
+        authClient,
+        rerankOptions: options.rerankers.map((o) =>
+          typeof o === 'string' ? { model: o } : o
+        ),
+      });
+    },
   });
 }

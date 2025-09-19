@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Genkit } from 'genkit';
+import { ResolvableAction, reranker } from 'genkit/plugin';
 import { RankedDocument, rerankerRef } from 'genkit/reranker';
 import { DEFAULT_MODEL, getRerankEndpoint } from './constants.js';
 import {
@@ -31,9 +31,8 @@ import {
  * @returns {Promise<void>}
  */
 export async function vertexAiRerankers(
-  ai: Genkit,
   options: VertexRerankOptions
-): Promise<void> {
+): Promise<ResolvableAction[]> {
   const rerankOptions = options.rerankOptions;
 
   if (rerankOptions.length === 0) {
@@ -44,11 +43,12 @@ export async function vertexAiRerankers(
   const client = await auth.getClient();
   const projectId = options.projectId;
 
+  const rerankerActions: ResolvableAction[] = [];
   for (const rerankOption of rerankOptions) {
     if (!rerankOption.name && !rerankOption.model) {
       throw new Error('At least one of name or model must be provided.');
     }
-    ai.defineReranker(
+    const rerankerAction = reranker(
       {
         name: `vertexai/${rerankOption.name || rerankOption.model}`,
         configSchema: VertexAIRerankerOptionsSchema.optional(),
@@ -83,7 +83,11 @@ export async function vertexAiRerankers(
         return { documents: rankedDocuments };
       }
     );
+
+    rerankerActions.push(rerankerAction);
   }
+
+  return rerankerActions;
 }
 
 /**

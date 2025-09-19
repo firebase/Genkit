@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import type { Genkit } from 'genkit';
-import { genkitPlugin, type GenkitPlugin } from 'genkit/plugin';
+import { genkitPluginV2, type GenkitPluginV2 } from 'genkit/plugin';
 import { getDerivedParams } from '../common/index.js';
 import { vertexEvaluators } from './evaluation.js';
 import type { PluginOptions } from './types.js';
@@ -25,10 +24,14 @@ export type { PluginOptions };
 /**
  * Add Google Cloud Vertex AI Rerankers API to Genkit.
  */
-export function vertexAIEvaluation(options: PluginOptions): GenkitPlugin {
-  return genkitPlugin('vertexAIEvaluation', async (ai: Genkit) => {
-    const { projectId, location, authClient } = await getDerivedParams(options);
+export function vertexAIEvaluation(options: PluginOptions): GenkitPluginV2 {
+  return genkitPluginV2({
+    name: 'vertexAIEvaluation',
+    init: async () => {
+      const { projectId, location, authClient } =
+        await getDerivedParams(options);
 
-    vertexEvaluators(ai, authClient, options.metrics, projectId, location);
+      return vertexEvaluators(authClient, options.metrics, projectId, location);
+    },
   });
 }

@@ -32,7 +32,6 @@ import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 import {
   z,
   type GenerateRequest,
-  type Genkit,
   type Part as GenkitPart,
   type MessageData,
   type ModelReference,
@@ -45,6 +44,7 @@ import {
   modelRef,
   type ModelAction,
 } from 'genkit/model';
+import { model } from 'genkit/plugin';
 import { getGenkitClientHeader } from '../common/index.js';
 
 export const AnthropicConfigSchema = GenerationCommonConfigSchema.extend({
@@ -429,7 +429,6 @@ function toAnthropicToolResponse(part: Part): ToolResultBlockParam {
 }
 
 export function anthropicModel(
-  ai: Genkit,
   modelName: string,
   projectId: string,
   region: string
@@ -447,22 +446,22 @@ export function anthropicModel(
     }
     return clients[region];
   };
-  const model = SUPPORTED_ANTHROPIC_MODELS[modelName];
-  if (!model) {
+  const modelRef = SUPPORTED_ANTHROPIC_MODELS[modelName];
+  if (!modelRef) {
     throw new Error(`unsupported Anthropic model name ${modelName}`);
   }
 
-  return ai.defineModel(
+  return model(
     {
-      name: model.name,
-      label: model.info?.label,
+      name: modelRef.name,
+      label: modelRef.info?.label,
       configSchema: AnthropicConfigSchema,
-      supports: model.info?.supports,
-      versions: model.info?.versions,
+      supports: modelRef.info?.supports,
+      versions: modelRef.info?.versions,
     },
-    async (input, sendChunk) => {
+    async (input, options) => {
       const client = clientFactory(input.config?.location || region);
-      if (!sendChunk) {
+      if (!options) {
         const response = await client.messages.create({
           ...toAnthropicRequest(input.config?.version ?? modelName, input),
           stream: false,
@@ -474,7 +473,7 @@ export function anthropicModel(
         );
         for await (const event of stream) {
           if (event.type === 'content_block_delta') {
-            sendChunk({
+            options.sendChunk({
               index: 0,
               content: [
                 {

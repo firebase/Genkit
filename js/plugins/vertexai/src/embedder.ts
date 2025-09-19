@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import { z, type Document, type Genkit } from 'genkit';
+import { z, type Document } from 'genkit';
 import {
-  embedderRef,
+  embedderRef as createEmbedderRef,
   type EmbedderAction,
   type EmbedderReference,
 } from 'genkit/embedder';
+import { embedder } from 'genkit/plugin';
 import type { GoogleAuth } from 'google-auth-library';
 import type { PluginOptions } from './common/types.js';
 import { predictModel, type PredictClient } from './predict.js';
@@ -61,7 +62,7 @@ function commonRef(
   name: string,
   input?: InputType[]
 ): EmbedderReference<typeof VertexEmbeddingConfigSchema> {
-  return embedderRef({
+  return createEmbedderRef({
     name: `vertexai/${name}`,
     configSchema: VertexEmbeddingConfigSchema,
     info: {
@@ -88,7 +89,7 @@ export const multimodalEmbedding001 = commonRef('multimodalembedding@001', [
   'image',
   'video',
 ]);
-export const geminiEmbedding001 = embedderRef({
+export const geminiEmbedding001 = createEmbedderRef({
   name: 'vertexai/gemini-embedding-001',
   configSchema: VertexEmbeddingConfigSchema,
   info: {
@@ -254,14 +255,13 @@ type EmbeddingResult = {
 };
 
 export function defineVertexAIEmbedder(
-  ai: Genkit,
   name: string,
   client: GoogleAuth,
   options: PluginOptions
 ): EmbedderAction<any> {
-  const embedder =
+  const embedderRef =
     SUPPORTED_EMBEDDER_MODELS[name] ??
-    embedderRef({
+    createEmbedderRef({
       name: `vertexai/${name}`,
       configSchema: VertexEmbeddingConfigSchema,
       info: {
@@ -298,18 +298,21 @@ export function defineVertexAIEmbedder(
     return predictClients[requestLocation];
   };
 
-  return ai.defineEmbedder(
+  return embedder(
     {
-      name: embedder.name,
-      configSchema: embedder.configSchema,
-      info: embedder.info!,
+      name: embedderRef.name,
+      configSchema: embedderRef.configSchema,
+      info: embedderRef.info!,
     },
-    async (input, options) => {
-      const predictClient = predictClientFactory(options);
+    async (request, options) => {
+      const predictClient = predictClientFactory(embedderRef.config);
       const response = await predictClient(
-        input.map((doc: Document) => {
+        request.input.map((doc: Document) => {
           let instance: EmbeddingInstance;
-          if (isMultiModal(embedder) && checkValidDocument(embedder, doc)) {
+          if (
+            isMultiModal(embedderRef) &&
+            checkValidDocument(embedderRef, doc)
+          ) {
             instance = {};
             if (doc.text) {
               instance.text = doc.text;
@@ -370,13 +373,13 @@ export function defineVertexAIEmbedder(
             // Text only embedder
             instance = {
               content: doc.text,
-              task_type: options?.taskType,
-              title: options?.title,
+              task_type: embedderRef.config?.taskType,
+              title: embedderRef.config?.title,
             };
           }
           return instance;
         }),
-        { outputDimensionality: options?.outputDimensionality }
+        { outputDimensionality: embedderRef.config?.outputDimensionality }
       );
       return {
         embeddings: response.predictions

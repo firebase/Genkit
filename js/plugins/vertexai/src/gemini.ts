@@ -35,7 +35,7 @@ import {
   type VertexAI,
 } from '@google-cloud/vertexai';
 import { ApiClient } from '@google-cloud/vertexai/build/src/resources/index.js';
-import { GenkitError, z, type Genkit, type JSONSchema } from 'genkit';
+import { GenkitError, z, type JSONSchema } from 'genkit';
 import {
   GenerationCommonConfigDescriptions,
   GenerationCommonConfigSchema,
@@ -56,6 +56,7 @@ import {
   downloadRequestMedia,
   simulateSystemPrompt,
 } from 'genkit/model/middleware';
+import { model } from 'genkit/plugin';
 import { runInNewSpan } from 'genkit/tracing';
 import { GoogleAuth } from 'google-auth-library';
 import { getGenkitClientHeader } from './common/index.js';
@@ -1021,7 +1022,6 @@ export function cleanSchema(schema: JSONSchema): JSONSchema {
  * Define a Vertex AI Gemini model.
  */
 export function defineGeminiKnownModel(
-  ai: Genkit,
   name: string,
   vertexClientFactory: (
     request: GenerateRequest<typeof GeminiConfigSchema>
@@ -1035,7 +1035,6 @@ export function defineGeminiKnownModel(
   if (!model) throw new Error(`Unsupported model: ${name}`);
 
   return defineGeminiModel({
-    ai,
     modelName,
     version: name,
     modelInfo: model?.info,
@@ -1049,7 +1048,6 @@ export function defineGeminiKnownModel(
  * Define a Vertex AI Gemini model.
  */
 export function defineGeminiModel({
-  ai,
   modelName,
   version,
   modelInfo,
@@ -1057,7 +1055,6 @@ export function defineGeminiModel({
   options,
   debugTraces,
 }: {
-  ai: Genkit;
   modelName: string;
   version: string;
   modelInfo: ModelInfo | undefined;
@@ -1093,14 +1090,14 @@ export function defineGeminiModel({
     );
   }
 
-  return ai.defineModel(
+  return model(
     {
       name: modelName,
       ...modelInfo,
       configSchema: GeminiConfigSchema,
       use: middlewares,
     },
-    async (request, sendChunk) => {
+    async (request, modelOptions) => {
       const vertex = vertexClientFactory(request);
 
       // Make a copy of messages to avoid side-effects
@@ -1264,7 +1261,7 @@ export function defineGeminiModel({
         let response: GenerateContentResponse;
 
         // Handle streaming and non-streaming responses
-        if (sendChunk) {
+        if (modelOptions) {
           const result = await genModel
             .startChat(updatedChatRequest)
             .sendMessageStream(msg.parts);
@@ -1273,7 +1270,7 @@ export function defineGeminiModel({
             (item as GenerateContentResponse).candidates?.forEach(
               (candidate) => {
                 const c = fromGeminiCandidate(candidate, jsonMode);
-                sendChunk({
+                modelOptions.sendChunk({
                   index: c.index,
                   content: c.message.content,
                 });
@@ -1319,12 +1316,12 @@ export function defineGeminiModel({
 
       // If debugTraces is enable, we wrap the actual model call with a span, add raw
       // API params as for input.
-      return debugTraces
+      return debugTraces && modelOptions?.registry
         ? await runInNewSpan(
-            ai.registry,
+            modelOptions.registry,
             {
               metadata: {
-                name: sendChunk ? 'sendMessageStream' : 'sendMessage',
+                name: modelOptions ? 'sendMessageStream' : 'sendMessage',
               },
             },
             async (metadata) => {
