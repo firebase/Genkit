@@ -36,7 +36,7 @@ from genkit.blocks.model import (
     GenerateResponseWrapper,
     ModelMiddleware,
 )
-from genkit.blocks.prompt import to_generate_action_options
+from genkit.blocks.prompt import to_generate_action_options, PromptConfig
 from genkit.core.action import ActionRunContext
 from genkit.core.action.types import ActionKind
 from genkit.types import (
@@ -161,24 +161,26 @@ class Genkit(GenkitBase):
         """
         return await generate_action(
             self.registry,
-            to_generate_action_options(
-                registry=self.registry,
-                model=model,
-                prompt=prompt,
-                system=system,
-                messages=messages,
-                tools=tools,
-                return_tool_requests=return_tool_requests,
-                tool_choice=tool_choice,
-                tool_responses=tool_responses,
-                config=config,
-                max_turns=max_turns,
-                output_format=output_format,
-                output_content_type=output_content_type,
-                output_instructions=output_instructions,
-                output_schema=output_schema,
-                output_constrained=output_constrained,
-                docs=docs,
+            await to_generate_action_options(
+                self.registry,
+                PromptConfig(
+                    model=model,
+                    prompt=prompt,
+                    system=system,
+                    messages=messages,
+                    tools=tools,
+                    return_tool_requests=return_tool_requests,
+                    tool_choice=tool_choice,
+                    tool_responses=tool_responses,
+                    config=config,
+                    max_turns=max_turns,
+                    output_format=output_format,
+                    output_content_type=output_content_type,
+                    output_instructions=output_instructions,
+                    output_schema=output_schema,
+                    output_constrained=output_constrained,
+                    docs=docs,
+                )
             ),
             on_chunk=on_chunk,
             middleware=use,
@@ -289,7 +291,7 @@ class Genkit(GenkitBase):
         )
         stream.set_close_future(resp)
 
-        return (stream, stream.closed)
+        return stream, stream.closed
 
     async def embed(
         self,

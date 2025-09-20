@@ -41,6 +41,7 @@ from genkit.core.action import (
     parse_plugin_name_from_action_name,
 )
 from genkit.core.action.types import ActionKind, ActionName, ActionResolver
+from dotpromptz.dotprompt import Dotprompt
 
 logger = structlog.get_logger(__name__)
 
@@ -84,7 +85,7 @@ class Registry:
         self._entries: ActionStore = {}
         self._value_by_kind_and_name: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
-
+        self.dotprompt = Dotprompt()
         # TODO: Figure out how to set this.
         self.api_stability: str = 'stable'
 
