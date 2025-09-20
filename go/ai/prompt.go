@@ -98,6 +98,7 @@ func DefinePrompt(r api.Registry, name string, opts ...PromptOption) Prompt {
 			"output":       map[string]any{"schema": p.OutputSchema},
 			"defaultInput": p.DefaultInput,
 			"tools":        tools,
+			"maxTurns":     p.MaxTurns,
 		},
 	}
 	maps.Copy(meta, promptMeta)

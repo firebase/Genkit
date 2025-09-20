@@ -936,6 +936,9 @@ Hello, {{name}}!
 	if promptMetadata["model"] != "test-model" {
 		t.Errorf("Expected model name 'test-model', got '%s'", prompt.(api.Action).Desc().Metadata["model"])
 	}
+	if promptMetadata["maxTurns"] != 5 {
+		t.Errorf("Expected maxTurns set to 5, got: %d", promptMetadata["maxTurns"])
+	}
 }
 
 func TestLoadPrompt_FileNotFound(t *testing.T) {
