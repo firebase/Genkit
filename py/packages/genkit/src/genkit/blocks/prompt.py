@@ -50,19 +50,18 @@ from genkit.core.typing import (
     Part,
     Resume,
     Role,
-    ToolChoice
+    ToolChoice, DocumentData
 )
 
-class PartsResolver(Protocol):
-    async def __call__(self, input_: Any, context: dict[str, Any], state: Any | None = None) -> Awaitable[str | Part | list[Part]]:
-        ...
 
-class PromptCache(BaseModel):
+class PromptCache:
     """Model for a prompt cache."""
+
     user_prompt: PromptFunction | None = None
     system: PromptFunction | None = None
     messages: PromptFunction | None = None
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
 
 
 class PromptConfig(BaseModel):
@@ -72,8 +71,8 @@ class PromptConfig(BaseModel):
     config: GenerationCommonConfig | dict[str, Any] | None = None
     description: str | None = None
     input_schema: type | dict[str, Any] | None = None
-    system: str | Part | list[Part] | PartsResolver | None = None
-    prompt: str | Part | list[Part] | PartsResolver | None = None
+    system: str | Part | list[Part] | None = None
+    prompt: str | Part | list[Part] | None = None
     messages: str | list[Message] | None = None
     output_format: str | None = None
     output_content_type: str | None = None
@@ -86,7 +85,8 @@ class PromptConfig(BaseModel):
     tools: list[str] | None = None
     tool_choice: ToolChoice | None = None
     use: list[ModelMiddleware] | None = None
-
+    docs: list[DocumentData] | None = None
+    tool_responses: list[Part] | None = None
 
 class ExecutablePrompt:
     """A prompt that can be executed with a given input and configuration."""
@@ -160,6 +160,7 @@ class ExecutablePrompt:
         self._tools = tools
         self._tool_choice = tool_choice
         self._use = use
+        self._cache_prompt = PromptCache()
 
     async def __call__(
         self,
@@ -182,7 +183,7 @@ class ExecutablePrompt:
         """
         return await generate_action(
             self._registry,
-            self.render(input=input, config=config),
+            await self.render(input=input, config=config),
             on_chunk=on_chunk,
             middleware=self._use,
             context=context if context else ActionRunContext._current_context(),
@@ -222,9 +223,9 @@ class ExecutablePrompt:
 
         return (stream, stream.closed)
 
-    def render(
+    async def render(
         self,
-        input: Any | None = None,
+        input: dict[str, Any] | None = None,
         config: GenerationCommonConfig | dict[str, Any] | None = None,
     ) -> GenerateActionOptions:
         """Renders the prompt with the given input and configuration.
@@ -237,7 +238,7 @@ class ExecutablePrompt:
             The rendered prompt as a GenerateActionOptions object.
         """
         # TODO: run str prompt/system/message through dotprompt using input
-        return to_generate_action_options(
+        return await to_generate_action_options(
             self._registry,
             PromptConfig(
                 model=self._model,
@@ -254,7 +255,9 @@ class ExecutablePrompt:
                 output_instructions=self._output_instructions,
                 output_schema=self._output_schema,
                 output_constrained=self._output_constrained,
-            )
+                input_schema=input if input else self._input_schema,
+            ),
+            self._cache_prompt
         )
 
 
@@ -265,8 +268,8 @@ def define_prompt(
     config: GenerationCommonConfig | dict[str, Any] | None = None,
     description: str | None = None,
     input_schema: type | dict[str, Any] | None = None,
-    system: str | Part | list[Part] | PartsResolver | None = None,
-    prompt: str | Part | list[Part] | PartsResolver | None = None,
+    system: str | Part | list[Part] | None = None,
+    prompt: str | Part | list[Part] | None = None,
     messages: str | list[Message] | None = None,
     output_format: str | None = None,
     output_content_type: str | None = None,
@@ -333,9 +336,10 @@ def define_prompt(
     )
 
 
-def to_generate_action_options(
+async def to_generate_action_options(
     registry: Registry,
     options: PromptConfig,
+    prompt_cache: PromptCache | None = None,
 ) -> GenerateActionOptions:
     """Converts the given parameters to a GenerateActionOptions object.
 
@@ -366,7 +370,8 @@ def to_generate_action_options(
         raise Exception('No model configured.')
     resolved_msgs: list[Message] = []
     if options.system:
-        resolved_msgs.append(Message(role=Role.SYSTEM, content=_normalize_prompt_arg(options.system)))
+        result = await render_system_prompt(registry, options.input_schema, options, prompt_cache)
+        resolved_msgs.append(result)
     if options.messages:
         resolved_msgs += options.messages
     if options.prompt:
@@ -376,6 +381,8 @@ def to_generate_action_options(
     # `json` format.
     if options.output_schema and not options.output_format:
         output_format = 'json'
+    else:
+        output_format = options.output_format
 
     output = GenerateActionOutputConfig()
     if output_format:
@@ -433,37 +440,47 @@ def _normalize_prompt_arg(
         return [prompt]
 
 
-async def render_system_prompt(registry: Registry, input_: dict[str, Any], options: PromptConfig) -> Message:
+
+async def render_system_prompt(
+    registry: Registry,
+    input: dict[str, Any],
+    options: PromptConfig,
+    prompt_cache: PromptCache | None = None,
+) -> Message:
     """Renders a system prompt."""
-
-    if callable(options.system) and asyncio.iscoroutinefunction(options.system):
-
-        result = await options.system(
-            input_=input_,
-            context=ActionRunContext._current_context()
-        )
-
-        return Message(
-            role=Role.SYSTEM,
-            content=_normalize_prompt_arg(result)
-        )
 
     if isinstance(options.system, str):
 
-        user_prompt = await registry.dotprompt.compile(input_)
+        if prompt_cache and prompt_cache.system is None:
+            prompt_cache.system = await registry.dotprompt.compile(options.system)
 
-        return Message(
-            role=Role.USER,
-            content=await render_dotprompt_to_parts(
+
+            return Message(
+                role=Role.USER,
+                content=await render_dotprompt_to_parts(
+                    ActionRunContext._current_context(),
+                    prompt_cache.system,
+                    input,
+                    PromptMetadata(
+                        input=PromptInputConfig(
+
+                        )
+                    ),
+                )
+            )
+        rendered = await registry.dotprompt.compile(options.system)
+        result = await render_dotprompt_to_parts(
                 ActionRunContext._current_context(),
-                user_prompt,
-                input_,
+                rendered,
+                input,
                 PromptMetadata(
                     input=PromptInputConfig(
-
                     )
                 ),
             )
+        return Message(
+            role=Role.USER,
+            content=result
         )
 
 
@@ -492,4 +509,4 @@ async def render_dotprompt_to_parts(
     if len(rendered.messages) > 1:
         raise Exception("parts template must produce only one message")
 
-    return rendered.messages[0].content
+    return [Part(root=e.content) for e in rendered.messages]

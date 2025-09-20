@@ -161,25 +161,25 @@ class Genkit(GenkitBase):
         """
         return await generate_action(
             self.registry,
-            to_generate_action_options(
+            await to_generate_action_options(
+                self.registry,
                 PromptConfig(
-                registry=self.registry,
-                model=model,
-                prompt=prompt,
-                system=system,
-                messages=messages,
-                tools=tools,
-                return_tool_requests=return_tool_requests,
-                tool_choice=tool_choice,
-                tool_responses=tool_responses,
-                config=config,
-                max_turns=max_turns,
-                output_format=output_format,
-                output_content_type=output_content_type,
-                output_instructions=output_instructions,
-                output_schema=output_schema,
-                output_constrained=output_constrained,
-                docs=docs,
+                    model=model,
+                    prompt=prompt,
+                    system=system,
+                    messages=messages,
+                    tools=tools,
+                    return_tool_requests=return_tool_requests,
+                    tool_choice=tool_choice,
+                    tool_responses=tool_responses,
+                    config=config,
+                    max_turns=max_turns,
+                    output_format=output_format,
+                    output_content_type=output_content_type,
+                    output_instructions=output_instructions,
+                    output_schema=output_schema,
+                    output_constrained=output_constrained,
+                    docs=docs,
                 )
             ),
             on_chunk=on_chunk,
@@ -291,7 +291,7 @@ class Genkit(GenkitBase):
         )
         stream.set_close_future(resp)
 
-        return (stream, stream.closed)
+        return stream, stream.closed
 
     async def embed(
         self,

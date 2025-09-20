@@ -48,7 +48,7 @@ async def test_simple_prompt() -> None:
     """Test simple prompt rendering."""
     ai, *_ = setup_test()
 
-    want_txt = '[ECHO] user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] user: "hi" {"temperature":11.0}'
 
     my_prompt = ai.define_prompt(prompt='hi', config={'temperature': 11})
 
@@ -66,7 +66,7 @@ async def test_simple_prompt_with_override_config() -> None:
     """Test the config provided at render time is used."""
     ai, *_ = setup_test()
 
-    want_txt = '[ECHO] user: "hi" {"temperature": 12}'
+    want_txt = '[ECHO] user: "hi" {"temperature":12.0}'
 
     my_prompt = ai.define_prompt(prompt='hi', config={'banana': True})
 

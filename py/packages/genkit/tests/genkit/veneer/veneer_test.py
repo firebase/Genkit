@@ -71,7 +71,7 @@ async def test_generate_uses_default_model(setup_test: SetupFixture) -> None:
     """Test that the generate function uses the default model."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] user: "hi" {"temperature":11.0}'
 
     response = await ai.generate(prompt='hi', config={'temperature': 11})
 
@@ -89,11 +89,11 @@ async def test_generate_with_explicit_model(setup_test: SetupFixture) -> None:
 
     response = await ai.generate(model='echoModel', prompt='hi', config={'temperature': 11})
 
-    assert response.text == '[ECHO] user: "hi" {"temperature": 11}'
+    assert response.text == '[ECHO] user: "hi" {"temperature":11.0}'
 
     _, response = ai.generate_stream(model='echoModel', prompt='hi', config={'temperature': 11})
 
-    assert (await response).text == '[ECHO] user: "hi" {"temperature": 11}'
+    assert (await response).text == '[ECHO] user: "hi" {"temperature":11.0}'
 
 
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ async def test_generate_with_str_prompt(setup_test: SetupFixture) -> None:
 
     response = await ai.generate(prompt='hi', config={'temperature': 11})
 
-    assert response.text == '[ECHO] user: "hi" {"temperature": 11}'
+    assert response.text == '[ECHO] user: "hi" {"temperature":11.0}'
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_generate_with_part_prompt(setup_test: SetupFixture) -> None:
     """Test that the generate function with a part prompt works."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] user: "hi" {"temperature":11.0}'
 
     response = await ai.generate(prompt=Part(text='hi'), config={'temperature': 11})
 
@@ -127,7 +127,7 @@ async def test_generate_with_part_list_prompt(setup_test: SetupFixture) -> None:
     """Test that the generate function with a list of parts prompt works."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] user: "hello","world" {"temperature": 11}'
+    want_txt = '[ECHO] user: "hello","world" {"temperature":11.0}'
 
     response = await ai.generate(
         prompt=[Part(text='hello'), Part(text='world')],
@@ -149,7 +149,7 @@ async def test_generate_with_str_system(setup_test: SetupFixture) -> None:
     """Test that the generate function with a string system works."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] system: "talk like pirate" user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] system: "talk like pirate" user: "hi" {"temperature":11.0}'
 
     response = await ai.generate(system='talk like pirate', prompt='hi', config={'temperature': 11})
 
@@ -165,7 +165,7 @@ async def test_generate_with_part_system(setup_test: SetupFixture) -> None:
     """Test that the generate function with a part system works."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] system: "talk like pirate" user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] system: "talk like pirate" user: "hi" {"temperature":11.0}'
 
     response = await ai.generate(
         system=Part(text='talk like pirate'),
@@ -189,7 +189,7 @@ async def test_generate_with_part_list_system(setup_test: SetupFixture) -> None:
     """Test that the generate function with a list of parts system works."""
     ai, *_ = setup_test
 
-    want_txt = '[ECHO] system: "talk","like pirate" user: "hi" {"temperature": 11}'
+    want_txt = '[ECHO] system: "talk","like pirate" user: "hi" {"temperature":11.0}'
 
     response = await ai.generate(
         system=[Part(text='talk'), Part(text='like pirate')],
@@ -223,7 +223,7 @@ async def test_generate_with_messages(setup_test: SetupFixture) -> None:
         config={'temperature': 11},
     )
 
-    assert response.text == '[ECHO] user: "hi" {"temperature": 11}'
+    assert response.text == '[ECHO] user: "hi" {"temperature":11.0}'
 
     _, response = ai.generate_stream(
         messages=[
@@ -235,7 +235,7 @@ async def test_generate_with_messages(setup_test: SetupFixture) -> None:
         config={'temperature': 11},
     )
 
-    assert (await response).text == '[ECHO] user: "hi" {"temperature": 11}'
+    assert (await response).text == '[ECHO] user: "hi" {"temperature":11.0}'
 
 
 @pytest.mark.asyncio
